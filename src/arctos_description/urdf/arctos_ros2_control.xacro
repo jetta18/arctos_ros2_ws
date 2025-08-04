@@ -1,0 +1,139 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="arctos_ros2_control" params="name">
+    <xacro:include filename="$(find arctos_description)/urdf/common/joint_link.xacro"/>
+    <ros2_control name="${name}" type="system">
+
+      <hardware>
+        <plugin>arctos_hardware_interface/ArctosMKSHardwareInterface</plugin>
+        <param name="motor_can_interface">can0</param>
+        
+        <!-- Motor configuration parameters -->
+        <!-- X_joint motor -->
+        <param name="motors.X_joint.motor_id">1</param>
+        <param name="motors.X_joint.gear_ratio">13.5</param>
+        <param name="motors.X_joint.inverted">false</param>
+        <param name="motors.X_joint.hardware_type">MKS_57D</param>
+        <param name="motors.X_joint.working_current">1000</param>
+        <param name="motors.X_joint.holding_current">70</param>
+        <param name="motors.X_joint.limit_remap_enabled">false</param>
+        <param name="motors.X_joint.work_mode">4</param>  <!-- SR_vFOC (recommended for CAN) -->
+        
+        <!-- Y_joint motor -->
+        <param name="motors.Y_joint.motor_id">2</param>
+        <param name="motors.Y_joint.gear_ratio">150.0</param>
+        <param name="motors.Y_joint.inverted">true</param>
+        <param name="motors.Y_joint.hardware_type">MKS_57D</param>
+        <param name="motors.Y_joint.working_current">1000</param>
+        <param name="motors.Y_joint.holding_current">70</param>
+        <param name="motors.Y_joint.limit_remap_enabled">false</param>
+        <param name="motors.Y_joint.work_mode">4</param>  <!-- SR_vFOC (recommended for CAN) -->
+        
+        <!-- Z_joint motor -->
+        <param name="motors.Z_joint.motor_id">3</param>
+        <param name="motors.Z_joint.gear_ratio">150.0</param>
+        <param name="motors.Z_joint.inverted">false</param>
+        <param name="motors.Z_joint.hardware_type">MKS_42D</param>
+        <param name="motors.Z_joint.working_current">1000</param>
+        <param name="motors.Z_joint.holding_current">70</param>
+        <param name="motors.Z_joint.limit_remap_enabled">true</param>
+        <param name="motors.Z_joint.work_mode">5</param>  <!-- SR_vFOC (recommended for CAN) -->
+        
+        <!-- A_joint motor -->
+        <param name="motors.A_joint.motor_id">4</param>
+        <param name="motors.A_joint.gear_ratio">48.0</param>
+        <param name="motors.A_joint.inverted">true</param>
+        <param name="motors.A_joint.hardware_type">MKS_42D</param>
+        <param name="motors.A_joint.working_current">1000</param>
+        <param name="motors.A_joint.holding_current">70</param>
+        <param name="motors.A_joint.limit_remap_enabled">true</param>
+        <param name="motors.A_joint.work_mode">5</param>  <!-- SR_vFOC (recommended for CAN) -->
+        
+        <!-- B_joint motor -->
+        <param name="motors.B_joint.motor_id">5</param>
+        <param name="motors.B_joint.gear_ratio">48.0</param>
+        <param name="motors.B_joint.inverted">true</param>
+        <param name="motors.B_joint.hardware_type">MKS_42D</param>
+        <param name="motors.B_joint.working_current">1000</param>
+        <param name="motors.B_joint.holding_current">70</param>
+        <param name="motors.B_joint.limit_remap_enabled">true</param>
+        <param name="motors.B_joint.work_mode">5</param>  <!-- SR_vFOC (recommended for CAN) -->
+        
+        <!-- C_joint motor -->
+        <param name="motors.C_joint.motor_id">6</param>
+        <param name="motors.C_joint.gear_ratio">10.0</param>
+        <param name="motors.C_joint.inverted">true</param>
+        <param name="motors.C_joint.hardware_type">MKS_42D</param>
+        <param name="motors.C_joint.working_current">1000</param>
+        <param name="motors.C_joint.holding_current">70</param>
+        <param name="motors.C_joint.limit_remap_enabled">true</param>
+        <param name="motors.C_joint.work_mode">5</param>  <!-- SR_vFOC (recommended for CAN) -->
+        
+      </hardware>
+
+      <xacro:arctos_control
+        name="X_joint"
+        limit_u="${pi}" limit_l="${-pi}"
+      />
+
+      <xacro:arctos_control
+        name="Y_joint"
+        limit_u="-0.88" limit_l="1.97"
+      />
+
+      <xacro:arctos_control
+        name="Z_joint"
+        limit_u="0.65" limit_l="-1.6"
+      />
+
+      <joint name="A_joint">
+        <command_interface name="position">
+          <param name="min">{-2*pi}</param>
+          <param name="max">{2*pi}</param>
+        </command_interface>
+        <command_interface name="velocity">
+          <param name="min">-3.0</param>
+          <param name="max">3.0</param>
+        </command_interface>
+        <state_interface name="position">
+          <param name="initial_value">0.0</param>
+        </state_interface>
+        <state_interface name="velocity"/>
+      </joint>
+
+      <joint name="B_joint">
+        <command_interface name="position">
+          <param name="min">{-2*pi}</param>
+          <param name="max">{2*pi}</param>
+        </command_interface>
+        <command_interface name="velocity">
+          <param name="min">-3.0</param>
+          <param name="max">3.0</param>
+        </command_interface>
+        <state_interface name="position">
+          <param name="initial_value">0.0</param>
+        </state_interface>
+        <state_interface name="velocity"/>
+      </joint>
+
+      <joint name="C_joint">
+        <command_interface name="position">
+          <param name="min">{-2*pi}</param>
+          <param name="max">{2*pi}</param>
+        </command_interface>
+        <command_interface name="velocity">
+          <param name="min">-3.0</param>
+          <param name="max">3.0</param>
+        </command_interface>
+        <state_interface name="position">
+          <param name="initial_value">0.0</param>
+        </state_interface>
+        <state_interface name="velocity"/>
+      </joint>
+
+    </ros2_control>
+
+  </xacro:macro>
+
+</robot>
