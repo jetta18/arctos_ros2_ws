@@ -13,7 +13,6 @@ from moveit_configs_utils import MoveItConfigsBuilder
 def generate_launch_description():
     # Get package paths
     arctos_description_dir = get_package_share_directory('arctos_description')
-    arctos_hardware_interface_dir = get_package_share_directory('arctos_hardware_interface')
     arctos_moveit_dir = get_package_share_directory('arctos_moveit_config')
 
     # Declare Launch Arguments
