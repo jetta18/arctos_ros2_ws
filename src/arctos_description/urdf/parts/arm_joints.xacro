@@ -1,0 +1,50 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="arctos">
+
+  <xacro:include filename="$(find arctos_description)/urdf/macros/joint_macro.xacro"/>
+  <xacro:include filename="$(find arctos_description)/urdf/macros/control_macro.xacro"/>
+
+  <!-- World fixed joint -->
+  <link name="world"/>
+  <joint name="world_joint" type="fixed">
+    <parent link="world"/>
+    <child  link="base_link"/>
+  </joint>
+
+  <!-- Revolute joints for 6-axis arm -->
+  <xacro:arctos_joint name="X_joint" parent="base_link" child="Link_1_1"
+                      type="revolute"
+                      origin_xyz="0 0 0.1126" axis_xyz="0 0 1"
+                      limit_u="${pi}" limit_l="${-pi}" limit_e="24.3" limit_v="15.0"/>
+
+  <xacro:arctos_joint name="Y_joint" parent="Link_1_1" child="Link_2_1"
+                      type="revolute"
+                      origin_xyz="0 -0.020356 ${0.2876-0.1126}"
+                      axis_xyz="1 0 0"
+                      limit_u="2.18" limit_l="-0.96" limit_e="270" limit_v="1.4"/>
+
+  <xacro:arctos_joint name="Z_joint" parent="Link_2_1" child="Link_3_1"
+                      type="revolute"
+                      origin_xyz="0 0.001365 0.261035"
+                      axis_xyz="1 0 0"
+                      limit_u="${70/180*pi}" limit_l="${-pi/2}" limit_e="97" limit_v="1.4"/>
+
+  <xacro:arctos_joint name="A_joint" parent="Link_3_1" child="Link_4_1"
+                      type="revolute"
+                      origin_xyz="0 -0.13881 0.0217651"
+                      axis_xyz="0 1 0"
+                      limit_u="${pi}" limit_l="${-pi}" limit_e="22" limit_v="4.4"/>
+
+  <xacro:arctos_joint name="B_joint" parent="Link_4_1" child="Link_5_1"
+                      type="revolute"
+                      origin_xyz="0 -0.12543 -0.00184"
+                      axis_xyz="-1 0 0"
+                      limit_u="1.55" limit_l="-1.55" limit_e="16" limit_v="3"/>
+
+  <xacro:arctos_joint name="C_joint" parent="Link_5_1" child="Link_6_1"
+                      type="revolute"
+                      origin_xyz="0 -0.0398 0"
+                      axis_xyz="0 1 0"
+                      limit_u="${pi}" limit_l="${-pi}" limit_e="16" limit_v="3"/>
+
+</robot>

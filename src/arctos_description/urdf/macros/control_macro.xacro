@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="arctos">
+
+  <!-- Helper macro that injects command & state interface tags for a joint-->
+  <xacro:macro name="arctos_control" params="name limit_u:='${pi}' limit_l:='${-pi}'">
+    <joint name="${name}">
+      <command_interface name="position">
+        <param name="min">${limit_l}</param>
+        <param name="max">${limit_u}</param>
+      </command_interface>
+      <command_interface name="velocity">
+        <param name="min">-3.0</param>
+        <param name="max">3.0</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+  </xacro:macro>
+
+</robot>

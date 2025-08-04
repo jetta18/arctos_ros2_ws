@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="arctos">
+
+  <xacro:macro name="arctos_joint" params="name type:='revolute'
+                                            parent child
+                                            origin_xyz:='0 0 0' origin_rpy:='0 0 0'
+                                            axis_xyz:='0 0 1'
+                                            limit_u:='0' limit_l:='0' limit_e:='0' limit_v:='0'">
+    <joint name="${name}" type="${type}">
+      <parent link="${parent}"/>
+      <child  link="${child}"/>
+      <origin xyz="${origin_xyz}" rpy="${origin_rpy}"/>
+      <axis xyz="${axis_xyz}"/>
+      <limit upper="${limit_u}" lower="${limit_l}" effort="${limit_e}" velocity="${limit_v}"/>
+    </joint>
+
+    <!-- generic simple transmission -->
+    <transmission name="transmission_${name}">
+      <type>transmission_interface/SimpleTransmission</type>
+      <joint name="${name}">
+        <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+      </joint>
+      <actuator name="${name}_motor">
+        <mechanicalReduction>1.0</mechanicalReduction>
+      </actuator>
+    </transmission>
+  </xacro:macro>
+
+</robot>

@@ -38,7 +38,7 @@ def generate_launch_description():
                 [
                     FindPackageShare("arctos_description"),
                     "urdf",
-                    "arctos_urdf.xacro",
+                    "arctos.urdf.xacro",
                 ]
             ),
         ]

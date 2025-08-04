@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="arctos">
+
+  <xacro:include filename="$(find arctos_description)/urdf/macros/link_macro.xacro"/>
+  <xacro:include filename="$(find arctos_description)/urdf/macros/joint_macro.xacro"/>
+
+  <!-- Simple pinch gripper definition (links + joints) -->
+  <xacro:arctos_link name="Gripper_1"
+                    origin_xyz="0 0.323 -0.5685"
+                    material_name="white"
+                    inertia_origin_xyz="-0.001 -0.0211 0"
+                    mass="0.2"
+                    ixx="1e-4" iyy="1e-4" izz="1e-4"/>
+
+  <xacro:arctos_link name="Left_jaw_1"
+                    origin_xyz="0 0.323 -0.5685"
+                    material_name="white"
+                    inertia_origin_xyz="0 -0.0211 0"
+                    mass="0.01"
+                    ixx="1e-5" iyy="1e-5" izz="1e-5"/>
+
+  <xacro:arctos_link name="Right_jaw_1"
+                    origin_xyz="0 0.323 -0.5685"
+                    material_name="white"
+                    inertia_origin_xyz="-0.001 -0.0211 0"
+                    mass="0.01"
+                    ixx="1e-5" iyy="1e-5" izz="1e-5"/>
+
+  <!-- Fixed connection to wrist -->
+  <xacro:arctos_joint name="Gripper_joint" type="fixed"
+                      parent="Link_6_1" child="Gripper_1"/>
+
+  <!-- Prismatic jaws -->
+  <xacro:arctos_joint name="Left_jaw_joint" type="prismatic"
+                      parent="Gripper_1" child="Left_jaw_1"
+                      axis_xyz="0 0 -1"
+                      limit_u="0.015" limit_l="0" limit_e="1" limit_v="10"/>
+
+  <xacro:arctos_joint name="Right_jaw_joint" type="prismatic"
+                      parent="Gripper_1" child="Right_jaw_1"
+                      axis_xyz="0 0 1"
+                      limit_u="0.015" limit_l="0" limit_e="1" limit_v="10"/>
+
+</robot>

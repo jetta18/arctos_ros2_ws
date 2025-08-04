@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="arctos">
+
+  <!-- More flexible link macro with named parameters and sane defaults -->
+  <xacro:macro name="arctos_link" params="name origin_xyz:='0 0 0' origin_rpy:='0 0 0' mesh:='' scale:='0.001 0.001 0.001' material_name:='white' inertia_origin_xyz:='0 0 0' inertia_origin_rpy:='0 0 0' mass:='1e-3' ixx:='1e-3' iyy:='1e-3' izz:='1e-3' ixy:='0' iyz:='0' ixz:='0'">
+    <xacro:property name="the_mesh" value="${mesh}"/>
+    <xacro:if value="${the_mesh == ''}">
+      <xacro:property name="the_mesh" value="${name}.stl"/>
+    </xacro:if>
+    <link name="${name}">
+      <visual>
+        <origin xyz="${origin_xyz}" rpy="${origin_rpy}"/>
+        <geometry>
+          <mesh filename="package://arctos_description/meshes/${the_mesh}" scale="${scale}"/>
+        </geometry>
+        <material name="${material_name}"/>
+      </visual>
+      <collision>
+        <origin xyz="${origin_xyz}" rpy="${origin_rpy}"/>
+        <geometry>
+          <mesh filename="package://arctos_description/meshes/${the_mesh}" scale="${scale}"/>
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="${inertia_origin_xyz}" rpy="${inertia_origin_rpy}"/>
+        <mass value="${mass}"/>
+        <inertia ixx="${ixx}" iyy="${iyy}" izz="${izz}"
+                 ixy="${ixy}" iyz="${iyz}" ixz="${ixz}"/>
+      </inertial>
+    </link>
+  </xacro:macro>
+
+</robot>

@@ -27,7 +27,7 @@ def generate_launch_description():
         arguments=['-d', rviz_config_file],
     )
 
-    urdf_file = os.path.join(arctos_description_dir, 'urdf', 'arctos.xacro')
+    urdf_file = os.path.join(arctos_description_dir, 'urdf', 'arctos.urdf.xacro')
     robot_description_content = Command(
         [
             FindExecutable(name='xacro'), ' ',
