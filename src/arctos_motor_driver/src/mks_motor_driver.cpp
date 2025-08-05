@@ -476,7 +476,7 @@ bool MKSMotorDriver::setJointAbsolutePositionByAxis(const std::string& joint_nam
     
     // Convert speed from rad/s to RPM
     double speed_rpm = std::abs(speed) * (30.0 / M_PI);
-    speed_rpm = std::min(speed_rpm, 1500.0);
+    speed_rpm = std::min(speed_rpm, 3000.0);
     uint16_t speed_rpm_int = static_cast<uint16_t>(speed_rpm);
     
     RCLCPP_DEBUG(node_->get_logger(), "Mode 4 - Absolute position by axis for '%s': %.3f rad -> %d axis units at %.1f RPM",
@@ -801,7 +801,7 @@ void MKSMotorDriver::updateJointFromMotorData(const std::string& joint_name) {
         state.joint_position = state.encoder.toJointAngle(config.gear_ratio, config.inverted);
         state.data_valid = true;
         
-        RCLCPP_INFO_THROTTLE(node_->get_logger(), *node_->get_clock(), 2000,
+        RCLCPP_DEBUG_THROTTLE(node_->get_logger(), *node_->get_clock(), 2000,
                             "Joint '%s': raw_encoder=%.3f rad, inverted=%s, joint_pos=%.3f rad",
                             joint_name.c_str(), raw_angle, config.inverted ? "YES" : "NO", state.joint_position);
     }

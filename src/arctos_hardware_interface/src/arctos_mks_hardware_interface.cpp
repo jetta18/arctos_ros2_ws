@@ -672,17 +672,12 @@ hardware_interface::return_type ArctosMKSHardwareInterface::write(
       
       // Only send command if there's a significant difference
       if (position_diff > position_threshold) {
-        // Use trajectory controller velocity command or fallback to calculated speed
-        double speed = std::abs(hw_commands_velocities_[i]);
-        
-        // If no velocity command, calculate from position difference
-        if (speed < 0.01) {
-          const double control_period = 0.04;  // 25Hz control rate
-          speed = position_diff / control_period;
-        }
+        // Calculate speed based on position difference with a scaling factor
+        const double speed_scale = 20.0;  // Adjust this value to control how quickly speed scales with position difference
+        double speed = position_diff * speed_scale;
         
         // Apply reasonable limits
-        speed = std::clamp(speed, 0.2, 3.0);
+        speed = std::clamp(speed, 20.0, 250.0);
         
         if (!motor_driver_->setJointAbsolutePositionByAxis(joint_name, commanded_position, speed)) {
           // Log warning but don't fail the entire write operation
