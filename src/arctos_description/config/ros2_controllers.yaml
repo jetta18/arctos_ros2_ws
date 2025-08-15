@@ -2,7 +2,7 @@
 
 controller_manager:
   ros__parameters:
-    update_rate: 50  # Hz
+    update_rate: 50  # Hz - Further reduced to prevent motor overload
 
     arctos_controller:
       type: joint_trajectory_controller/JointTrajectoryController
@@ -21,8 +21,47 @@ arctos_controller:
       - C_joint
     command_interfaces:
       - position
-      - velocity
     state_interfaces:
       - position
       - velocity
+    
+    # Controller configuration
+    action_monitor_rate: 20.0  # Reduced for stability
+    allow_integration_in_goal_trajectories: false
+    allow_nonzero_velocity_at_trajectory_end: true
+    allow_partial_joints_goal: false
+    open_loop_control: false
+    set_last_command_interface_value_as_state_on_activation: true
+    
+    # Publishing rates
+    state_publish_rate: 50.0  # Match controller update rate
+    
+    # Timeout settings
+    cmd_timeout: 0.0
+    
+    # Interpolation method
+    interpolation_method: "splines"
+    
+    # Constraints and tolerances - adjusted for motor response characteristics
+    constraints:
+      stopped_velocity_tolerance: 0.05
+      goal_time: 2.0  # More time for motor response
+      X_joint:
+        trajectory: 0.08  # Looser for motor lag
+        goal: 0.03        
+      Y_joint:
+        trajectory: 0.05  # Moderate tolerance
+        goal: 0.02
+      Z_joint:
+        trajectory: 0.05  # Increased from 0.02 to handle lag
+        goal: 0.02
+      A_joint:
+        trajectory: 0.08
+        goal: 0.03
+      B_joint:
+        trajectory: 0.08
+        goal: 0.03
+      C_joint:
+        trajectory: 0.12  # Loosest for fast rotation
+        goal: 0.05
 

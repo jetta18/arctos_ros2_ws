@@ -10,6 +10,8 @@
       <hardware>
                 <plugin>arctos_hardware_interface/ArctosMKSHardwareInterface</plugin>
                 <param name="motor_can_interface">can0</param>
+                <param name="polling_frequency_hz">30</param>
+                <param name="mks_inter_request_delay_us">500</param>
 
         <!-- Motor configuration parameters -->
         <!-- X_joint -->
@@ -17,25 +19,25 @@
         <param name="motors.X_joint.gear_ratio">13.5</param>
         <param name="motors.X_joint.inverted">false</param>
         <param name="motors.X_joint.hardware_type">MKS_57D</param>
-        <param name="motors.X_joint.working_current">1000</param>
+        <param name="motors.X_joint.working_current">2400</param>
         <param name="motors.X_joint.holding_current">70</param>
         <param name="motors.X_joint.limit_remap_enabled">false</param>
-        <param name="motors.X_joint.work_mode">4</param>
+        <param name="motors.X_joint.work_mode">5</param>
         <!-- Y_joint -->
         <param name="motors.Y_joint.motor_id">2</param>
         <param name="motors.Y_joint.gear_ratio">150.0</param>
         <param name="motors.Y_joint.inverted">true</param>
         <param name="motors.Y_joint.hardware_type">MKS_57D</param>
-        <param name="motors.Y_joint.working_current">1000</param>
+        <param name="motors.Y_joint.working_current">2400</param>
         <param name="motors.Y_joint.holding_current">70</param>
         <param name="motors.Y_joint.limit_remap_enabled">false</param>
-        <param name="motors.Y_joint.work_mode">4</param>
+        <param name="motors.Y_joint.work_mode">5</param>
         <!-- Z_joint -->
         <param name="motors.Z_joint.motor_id">3</param>
         <param name="motors.Z_joint.gear_ratio">150.0</param>
         <param name="motors.Z_joint.inverted">false</param>
         <param name="motors.Z_joint.hardware_type">MKS_42D</param>
-        <param name="motors.Z_joint.working_current">1000</param>
+        <param name="motors.Z_joint.working_current">1800</param>
         <param name="motors.Z_joint.holding_current">70</param>
         <param name="motors.Z_joint.limit_remap_enabled">true</param>
         <param name="motors.Z_joint.work_mode">5</param>
@@ -50,7 +52,7 @@
         <param name="motors.A_joint.work_mode">5</param>
         <!-- B_joint -->
         <param name="motors.B_joint.motor_id">5</param>
-        <param name="motors.B_joint.gear_ratio">48.0</param>
+        <param name="motors.B_joint.gear_ratio">27.3375</param>
         <param name="motors.B_joint.inverted">true</param>
         <param name="motors.B_joint.hardware_type">MKS_42D</param>
         <param name="motors.B_joint.working_current">1000</param>
