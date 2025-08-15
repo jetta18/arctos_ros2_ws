@@ -8,6 +8,7 @@
 #include <vector>
 #include <thread>
 #include <algorithm>
+#include <map>
 
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -194,6 +195,9 @@ hardware_interface::CallbackReturn ArctosMKSHardwareInterface::on_cleanup(
         rclcpp::get_logger("ArctosMKSHardwareInterface"),
         "Cleaning up motor driver...");
       
+      // Stop polling if still running
+      motor_driver_->stopPolling();
+      
       // Reset motor driver (destructor will handle CAN cleanup)
       motor_driver_.reset();
       
@@ -318,6 +322,19 @@ hardware_interface::CallbackReturn ArctosMKSHardwareInterface::on_activate(
       // Create a temporary node for motor driver
       auto temp_node = rclcpp::Node::make_shared("motor_driver_node");
       motor_driver_ = std::make_unique<arctos_motor_driver::MKSMotorDriver>(temp_node, can_interface_name_);
+      // Apply optional pacing between CAN requests from hardware params
+      try {
+        const std::string delay_str = getHardwareParameter("mks_inter_request_delay_us", "150");
+        int delay_us = std::stoi(delay_str);
+        motor_driver_->setInterRequestDelayUs(delay_us);
+        RCLCPP_INFO(
+          rclcpp::get_logger("ArctosMKSHardwareInterface"),
+          "Set mks_inter_request_delay_us to %d via hardware params", delay_us);
+      } catch (...) {
+        RCLCPP_WARN(
+          rclcpp::get_logger("ArctosMKSHardwareInterface"),
+          "Failed to parse mks_inter_request_delay_us; using driver's default");
+      }
       
       // Configure all motors
       for (const std::string& joint_name : joint_names_)
@@ -392,14 +409,22 @@ hardware_interface::CallbackReturn ArctosMKSHardwareInterface::on_activate(
     // Wait a bit for motors to stabilize
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
-    // Update joint states to get initial positions
+    // Start background polling inside the driver
+    double polling_hz = 200.0;
+    {
+      const std::string hz_str = getHardwareParameter("polling_frequency_hz", "200.0");
+      try {
+        polling_hz = std::stod(hz_str);
+      } catch (...) {
+        polling_hz = 200.0;
+      }
+    }
+    motor_driver_->startPolling(polling_hz);
     RCLCPP_INFO(
       rclcpp::get_logger("ArctosMKSHardwareInterface"),
-      "Reading initial joint positions...");
+      "Started motor polling at %.1f Hz", polling_hz);
     
-    motor_driver_->updateJointStates();
-    
-    // Wait for data to arrive
+    // Give the polling loop a moment to populate initial cached data
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     
     // Initialize joint state vectors with current motor positions
@@ -457,13 +482,11 @@ hardware_interface::CallbackReturn ArctosMKSHardwareInterface::on_deactivate(
   }
   
   try {
-    // Read final positions before disabling
+    // Stop background polling before disabling motors
     RCLCPP_INFO(
       rclcpp::get_logger("ArctosMKSHardwareInterface"),
-      "Reading final joint positions before deactivation...");
-    
-    motor_driver_->updateJointStates();
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      "Stopping motor polling...");
+    motor_driver_->stopPolling();
     
     // Update state vectors with final positions
     for (size_t i = 0; i < joint_names_.size(); ++i) {
@@ -522,6 +545,12 @@ hardware_interface::CallbackReturn ArctosMKSHardwareInterface::on_shutdown(
         rclcpp::get_logger("ArctosMKSHardwareInterface"),
         "Performing graceful shutdown of motor system...");
       
+      // Ensure polling is stopped
+      RCLCPP_INFO(
+        rclcpp::get_logger("ArctosMKSHardwareInterface"),
+        "Stopping motor polling for shutdown...");
+      motor_driver_->stopPolling();
+
       // Disable all motors safely
       motor_driver_->enableAllMotors(false);
       
@@ -557,6 +586,8 @@ hardware_interface::CallbackReturn ArctosMKSHardwareInterface::on_error(
   
   try {
     if (motor_driver_) {
+      // Stop polling to prevent further CAN traffic during error handling
+      motor_driver_->stopPolling();
       RCLCPP_ERROR(
         rclcpp::get_logger("ArctosMKSHardwareInterface"),
         "Emergency stopping all motors due to error state...");
@@ -606,9 +637,7 @@ hardware_interface::return_type ArctosMKSHardwareInterface::read(
   }
   
   try {
-    // Update joint states from motor driver
-    // This will request encoder data from all motors via CAN
-    motor_driver_->updateJointStates();
+    // Read cached joint states (driver polls in background)
     
     // Read current positions and velocities for each joint
     for (size_t i = 0; i < joint_names_.size(); ++i) {
@@ -649,66 +678,30 @@ hardware_interface::return_type ArctosMKSHardwareInterface::read(
 }
 
 hardware_interface::return_type ArctosMKSHardwareInterface::write(
-  const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
+  const rclcpp::Time & /*time*/, const rclcpp::Duration & period)
 {
   if (!motor_driver_) {
     // Hardware interface not configured yet
     return hardware_interface::return_type::ERROR;
   }
   
-  try {
-    // Send position commands to motors
-    // hw_commands_positions_ contains the target positions from the controller
-    for (size_t i = 0; i < joint_names_.size(); ++i) {
-      const std::string& joint_name = joint_names_[i];
+
       
-      // Get commanded position from controller
-      double commanded_position = hw_commands_positions_[i];
-      double current_position = hw_positions_[i];
-      
-      // Calculate position difference to avoid unnecessary commands
-      double position_diff = std::abs(commanded_position - current_position);
-      const double position_threshold = 0.001;  // 1 mrad threshold
-      
-      // Only send command if there's a significant difference
-      if (position_diff > position_threshold) {
-        // Calculate speed based on position difference with a scaling factor
-        const double speed_scale = 20.0;  // Adjust this value to control how quickly speed scales with position difference
-        double speed = position_diff * speed_scale;
-        
-        // Apply reasonable limits
-        speed = std::clamp(speed, 20.0, 250.0);
-        
-        if (!motor_driver_->setJointAbsolutePositionByAxis(joint_name, commanded_position, speed)) {
-          // Log warning but don't fail the entire write operation
-          static auto last_error = std::chrono::steady_clock::now();
-          auto now = std::chrono::steady_clock::now();
-          if (std::chrono::duration_cast<std::chrono::seconds>(now - last_error).count() >= 1) {
-            RCLCPP_WARN(
-              rclcpp::get_logger("ArctosMKSHardwareInterface"),
-              "Failed to send position command to joint '%s' (target=%.3f, current=%.3f)",
-              joint_name.c_str(), commanded_position, current_position);
-            last_error = now;
-          }
-        }
-      }
-      
-      // Optional: Log significant position commands for debugging
-      if (position_diff > 0.01) {  // Log if difference > 10 mrad
-        static auto last_log = std::chrono::steady_clock::now();
+      // Send command to motor driver
+      if (!motor_driver_->setJointAbsolutePositionByAxis(joint_name, commanded_position, ramped_speed)) {
+        // Log warning but don't fail the entire write operation
+        static std::map<std::string, std::chrono::steady_clock::time_point> last_errors;
         auto now = std::chrono::steady_clock::now();
-        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_log).count() >= 500) {
-          RCLCPP_DEBUG(
+        if (last_errors.find(joint_name) == last_errors.end() || 
+            std::chrono::duration_cast<std::chrono::seconds>(now - last_errors[joint_name]).count() >= 2) {
+          RCLCPP_WARN(
             rclcpp::get_logger("ArctosMKSHardwareInterface"),
-            "Joint '%s': cmd=%.3f, cur=%.3f, diff=%.3f",
-            joint_name.c_str(), commanded_position, current_position, position_diff);
-          last_log = now;
+            "Failed to send command to '%s': target=%.3f, current=%.3f, vel_cmd=%.3f, speed=%.1f (ramped; dt=%.3f)",
+            joint_name.c_str(), commanded_position, current_position, commanded_velocity, ramped_speed, dt);
+          last_errors[joint_name] = now;
         }
-      }
-    }
-    
-    // Note: Velocity commands are not implemented yet
-    // hw_commands_velocities_ is available for future use
+
+
     
   } catch (const std::exception& e) {
     RCLCPP_ERROR(

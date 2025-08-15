@@ -24,10 +24,22 @@ MKSMotorDriver::MKSMotorDriver(rclcpp::Node::SharedPtr node, const std::string& 
             this->processCANMessage(msg);
         });
 
+    // Initialize tuning params
+    try {
+        // Optional ROS parameter to experiment with small TX gaps (microseconds)
+        int delay_us = node_->declare_parameter<int>("mks_inter_request_delay_us", 150);
+        inter_request_delay_us_.store(delay_us);
+        if (delay_us > 0) {
+            RCLCPP_INFO(node_->get_logger(), "Using inter-request delay: %d us", delay_us);
+        }
+    } catch (const std::exception&){ /* parameter may already exist in some contexts */ }
+
     RCLCPP_INFO(node_->get_logger(), "MKSMotorDriver initialized with direct CAN access on '%s'", can_interface_name.c_str());
 }
 
 MKSMotorDriver::~MKSMotorDriver() {
+    // Ensure background polling is stopped before destruction
+    stopPolling();
     RCLCPP_INFO(node_->get_logger(), "MKSMotorDriver destroyed. %s", getStatistics().c_str());
 }
 
@@ -378,8 +390,8 @@ bool MKSMotorDriver::setJointRelativePositionByPulses(const std::string& joint_n
     int32_t encoder_pulses = static_cast<int32_t>(std::abs(degrees * config.gear_ratio * (16384.0 / 360.0)));
     bool clockwise = (adjusted_position >= 0);
     
-    // Convert speed from rad/s to RPM
-    double speed_rpm = std::abs(speed) * (30.0 / M_PI);
+    // Convert speed from joint rad/s to motor RPM (apply gear ratio)
+    double speed_rpm = std::abs(speed) * (30.0 / M_PI) * config.gear_ratio;
     speed_rpm = std::min(speed_rpm, 1500.0);
     uint16_t speed_rpm_int = static_cast<uint16_t>(speed_rpm);
     
@@ -411,7 +423,7 @@ bool MKSMotorDriver::setJointAbsolutePositionByPulses(const std::string& joint_n
     encoder_pulses = std::max(-8388607, std::min(8388607, encoder_pulses));
     
     // Convert speed from rad/s to RPM
-    double speed_rpm = std::abs(speed) * (30.0 / M_PI);
+    double speed_rpm = std::abs(speed) * (30.0 / M_PI) * config.gear_ratio;
     speed_rpm = std::min(speed_rpm, 1500.0);
     uint16_t speed_rpm_int = static_cast<uint16_t>(speed_rpm);
     
@@ -443,7 +455,7 @@ bool MKSMotorDriver::setJointRelativePositionByAxis(const std::string& joint_nam
     axis_units = std::max(-8388607, std::min(8388607, axis_units));
     
     // Convert speed from rad/s to RPM
-    double speed_rpm = std::abs(speed) * (30.0 / M_PI);
+    double speed_rpm = std::abs(speed) * (30.0 / M_PI) * config.gear_ratio;
     speed_rpm = std::min(speed_rpm, 1500.0);
     uint16_t speed_rpm_int = static_cast<uint16_t>(speed_rpm);
     
@@ -474,15 +486,15 @@ bool MKSMotorDriver::setJointAbsolutePositionByAxis(const std::string& joint_nam
     // Clamp to valid range for 24-bit signed integer
     axis_units = std::max(-8388607, std::min(8388607, axis_units));
     
-    // Convert speed from rad/s to RPM
-    double speed_rpm = std::abs(speed) * (30.0 / M_PI);
+    // Convert speed from joint rad/s to motor RPM (apply gear ratio)
+    double speed_rpm = std::abs(speed) * (30.0 / M_PI) * config.gear_ratio;
     speed_rpm = std::min(speed_rpm, 3000.0);
     uint16_t speed_rpm_int = static_cast<uint16_t>(speed_rpm);
     
     RCLCPP_DEBUG(node_->get_logger(), "Mode 4 - Absolute position by axis for '%s': %.3f rad -> %d axis units at %.1f RPM",
                  joint_name.c_str(), absolute_position, axis_units, speed_rpm);
     
-    return can_protocol_->setAbsolutePositionByAxis(config.motor_id, axis_units, speed_rpm_int, 245);
+    return can_protocol_->setAbsolutePositionByAxis(config.motor_id, axis_units, speed_rpm_int, 220);
 }
 
 bool MKSMotorDriver::setJointVelocity(const std::string& joint_name, double velocity) {
@@ -526,17 +538,68 @@ void MKSMotorDriver::updateJointStates() {
             uint32_t motor_id = config_it->second.motor_id;
             
             // Request encoder data (most important)
-            can_protocol_->requestEncoderReading(motor_id);
-            
-            // Request speed data
-            can_protocol_->requestSpeedReading(motor_id);
-            
+            (void)can_protocol_->requestEncoderReading(motor_id);
+            // Optional small pause between TX to avoid bus congestion on some hardware
+            int us = inter_request_delay_us_.load();
+            if (us > 0) {
+                std::this_thread::sleep_for(std::chrono::microseconds(us));
+            }
+
             // Request IO status (for limit switches)
             // can_protocol_->requestIOStatus(motor_id);
-            
-            // Small delay between requests
-            std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
+    }
+}
+
+void MKSMotorDriver::startPolling(double hz) {
+    // Clamp rate to a reasonable range
+    if (!(hz > 0.0)) hz = 200.0;
+    if (hz < 1.0) hz = 1.0;
+    if (hz > 1000.0) hz = 1000.0;
+    polling_rate_hz_ = hz;
+
+    if (polling_running_.load()) {
+        // Already running; just update the rate
+        RCLCPP_DEBUG(node_->get_logger(), "Polling already running, updating rate to %.1f Hz", hz);
+        return;
+    }
+
+    polling_running_.store(true);
+    polling_thread_ = std::thread(&MKSMotorDriver::pollingLoop, this);
+    RCLCPP_INFO(node_->get_logger(), "Started background polling at %.1f Hz", hz);
+}
+
+void MKSMotorDriver::stopPolling() {
+    if (polling_running_.exchange(false)) {
+        if (polling_thread_.joinable()) {
+            polling_thread_.join();
+        }
+        RCLCPP_INFO(node_->get_logger(), "Stopped background polling");
+    }
+}
+
+void MKSMotorDriver::pollingLoop() {
+    using clock = std::chrono::steady_clock;
+    auto next = clock::now();
+
+    while (polling_running_.load()) {
+        // Perform one polling cycle
+        try {
+            updateJointStates();
+        } catch (const std::exception& e) {
+            RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 2000,
+                                 "Polling loop exception: %s", e.what());
+        }
+
+        // Compute next wakeup based on current rate
+        double hz = polling_rate_hz_;
+        if (!(hz > 0.0)) hz = 200.0;
+        if (hz < 1.0) hz = 1.0;
+        if (hz > 1000.0) hz = 1000.0;
+        auto period = std::chrono::duration<double>(1.0 / hz);
+        next = clock::now() + std::chrono::duration_cast<clock::duration>(period);
+
+        std::this_thread::sleep_until(next);
     }
 }
 

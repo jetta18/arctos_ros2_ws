@@ -9,6 +9,10 @@
 #include <unordered_map>
 #include <string>
 #include <mutex>
+#include <thread>
+#include <atomic>
+// For time types used in periodic logging
+#include <chrono>
 
 namespace arctos_motor_driver {
 
@@ -246,6 +250,25 @@ public:
      * This should be called regularly to keep joint states current
      */
     void updateJointStates();
+
+    /**
+     * @brief Set microsecond delay between consecutive CAN requests.
+     * @param us Microseconds to sleep between requests (0 to disable)
+     */
+    void setInterRequestDelayUs(int us) {
+        inter_request_delay_us_.store(us);
+    }
+
+    /**
+     * @brief Start background polling of joint states at a fixed rate.
+     * @param hz Polling frequency in Hz (clamped internally to [1, 1000]).
+     */
+    void startPolling(double hz = 200.0);
+
+    /**
+     * @brief Stop background polling if running.
+     */
+    void stopPolling();
     
     /**
      * @brief Get current joint position
@@ -366,6 +389,16 @@ private:
      */
     void logCANMessage(const CANFrame& frame, const std::string& direction, 
                        const std::string& description = "") const;
+
+    // Background polling
+    void pollingLoop();
+
+    // Polling thread/mode
+    std::thread polling_thread_;
+    std::atomic<bool> polling_running_{false};
+    std::atomic<double> polling_rate_hz_{200.0};
+    // Optional micro-delay between back-to-back CAN TX in updateJointStates()
+    std::atomic<int> inter_request_delay_us_{0};
 };
 
 } // namespace arctos_motor_driver
