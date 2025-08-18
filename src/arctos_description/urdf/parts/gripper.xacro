@@ -31,12 +31,12 @@
                       parent="Link_6_1" child="Gripper_1"/>
 
   <!-- Prismatic jaws -->
-  <xacro:arctos_joint name="Left_jaw_joint" type="prismatic"
+  <xacro:arctos_joint name="Left_jaw_joint" type="fixed"
                       parent="Gripper_1" child="Left_jaw_1"
                       axis_xyz="0 0 -1"
                       limit_u="0.015" limit_l="0" limit_e="1" limit_v="10"/>
 
-  <xacro:arctos_joint name="Right_jaw_joint" type="prismatic"
+  <xacro:arctos_joint name="Right_jaw_joint" type="fixed"
                       parent="Gripper_1" child="Right_jaw_1"
                       axis_xyz="0 0 1"
                       limit_u="0.015" limit_l="0" limit_e="1" limit_v="10"/>

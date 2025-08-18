@@ -678,31 +678,44 @@ hardware_interface::return_type ArctosMKSHardwareInterface::read(
 }
 
 hardware_interface::return_type ArctosMKSHardwareInterface::write(
-  const rclcpp::Time & /*time*/, const rclcpp::Duration & period)
+  const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
   if (!motor_driver_) {
-    // Hardware interface not configured yet
     return hardware_interface::return_type::ERROR;
   }
-  
 
-      
-      // Send command to motor driver
-      if (!motor_driver_->setJointAbsolutePositionByAxis(joint_name, commanded_position, ramped_speed)) {
+  try {
+    for (size_t i = 0; i < joint_names_.size(); ++i) {
+      const std::string& joint_name = joint_names_[i];
+
+      // Directly use the commands from the controller (position + velocity feedforward)
+      const double commanded_position = hw_commands_positions_[i];
+      const double commanded_velocity = hw_commands_velocities_[i];
+
+      // Use the new, optimized driver method that sends position and velocity together
+      if (!motor_driver_->setJointGoal(joint_name, commanded_position, commanded_velocity)) {
         // Log warning but don't fail the entire write operation
-        static std::map<std::string, std::chrono::steady_clock::time_point> last_errors;
-        auto now = std::chrono::steady_clock::now();
-        if (last_errors.find(joint_name) == last_errors.end() || 
-            std::chrono::duration_cast<std::chrono::seconds>(now - last_errors[joint_name]).count() >= 2) {
-          RCLCPP_WARN(
-            rclcpp::get_logger("ArctosMKSHardwareInterface"),
-            "Failed to send command to '%s': target=%.3f, current=%.3f, vel_cmd=%.3f, speed=%.1f (ramped; dt=%.3f)",
-            joint_name.c_str(), commanded_position, current_position, commanded_velocity, ramped_speed, dt);
-          last_errors[joint_name] = now;
+        static std::map<std::string, rclcpp::Time> last_error_log_time;
+        auto now = rclcpp::Clock().now();
+
+        bool should_log = false;
+        if (last_error_log_time.find(joint_name) == last_error_log_time.end()) {
+            should_log = true;
+        } else {
+            if ((now - last_error_log_time[joint_name]).seconds() > 2.0) {
+                should_log = true;
+            }
         }
 
-
-    
+        if (should_log) {
+            RCLCPP_WARN(
+                rclcpp::get_logger("ArctosMKSHardwareInterface"),
+                "Failed to send goal to '%s': pos=%.3f rad, vel=%.3f rad/s",
+                joint_name.c_str(), commanded_position, commanded_velocity);
+            last_error_log_time[joint_name] = now;
+        }
+      }
+    }
   } catch (const std::exception& e) {
     RCLCPP_ERROR(
       rclcpp::get_logger("ArctosMKSHardwareInterface"),
