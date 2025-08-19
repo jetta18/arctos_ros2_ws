@@ -692,8 +692,8 @@ hardware_interface::return_type ArctosMKSHardwareInterface::write(
       const double commanded_position = hw_commands_positions_[i];
       const double commanded_velocity = hw_commands_velocities_[i];
 
-      // Use the new, optimized driver method that sends position and velocity together
-      if (!motor_driver_->setJointGoal(joint_name, commanded_position, commanded_velocity)) {
+      // Use the recommended absolute position mode for trajectory following
+      if (!motor_driver_->setJointAbsolutePositionByPulses(joint_name, commanded_position, commanded_velocity)) {
         // Log warning but don't fail the entire write operation
         static std::map<std::string, rclcpp::Time> last_error_log_time;
         auto now = rclcpp::Clock().now();
