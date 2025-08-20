@@ -21,9 +21,10 @@ arctos_controller:
       - C_joint
     command_interfaces:
       - position
+      # - velocity
     state_interfaces:
       - position
-      - velocity
+      # - velocity
     
     # Controller configuration
     action_monitor_rate: 20.0  # Reduced for stability

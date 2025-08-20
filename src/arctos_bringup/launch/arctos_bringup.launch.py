@@ -15,6 +15,7 @@ def generate_launch_description():
     # Get package paths
     arctos_description_dir = get_package_share_directory('arctos_description')
     arctos_moveit_dir = get_package_share_directory('arctos_moveit_config')
+    arctos_step_bridge_dir = get_package_share_directory('arctos_step_bridge')
 
     # Declare Launch Arguments
     declare_rviz_arg = DeclareLaunchArgument(
@@ -87,6 +88,13 @@ def generate_launch_description():
         )
     )
 
+    # Include Step Bridge launch (converts JointState radians to per-axis step topics)
+    step_bridge_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([arctos_step_bridge_dir, "launch", "step_bridge.launch.py"])
+        )
+    )
+
     moveit_config = MoveItConfigsBuilder("arctos", package_name="arctos_moveit_config").to_moveit_configs()
 
     # RViz Node
@@ -136,6 +144,9 @@ def generate_launch_description():
         
         # Hardware interface and controller manager (direct CAN access)
         control_node,
+
+        # Step Bridge (runs alongside controllers)
+        step_bridge_launch,
         
         # Controllers (delayed and sequenced)
         delayed_joint_state_broadcaster,
