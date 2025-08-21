@@ -43,9 +43,6 @@ def generate_launch_description():
         arctos_description_dir, 'config', 'ros2_controllers.yaml'
     )
 
-    # NOTE: No separate CAN bridge nodes needed!
-    # Our MKS Motor Driver uses direct SocketCAN access via integrated SocketCANBridge
-
     # Robot State Publisher
     robot_state_pub_node = Node(
         package="robot_state_publisher",

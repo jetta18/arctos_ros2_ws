@@ -1,33 +1,26 @@
+# This config file is used by ros2_control
 controller_manager:
   ros__parameters:
     update_rate: 100  # Hz
 
-    joint_trajectory_controller:
+    arctos_controller:
       type: joint_trajectory_controller/JointTrajectoryController
+
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
 
-joint_trajectory_controller:
+arctos_controller:
   ros__parameters:
     joints:
-    - X_joint
-    - Y_joint
-    - Z_joint
-    - A_joint
-    - B_joint
-    - C_joint
-
+      - X_joint
+      - Y_joint
+      - Z_joint
+      - A_joint
+      - B_joint
+      - C_joint
     command_interfaces:
-    - position
-    - velocity
-
+      - position
     state_interfaces:
-    - position
-    - velocity
-
-    state_publish_rate: 50.0
-    action_monitor_rate: 20.0
-
-    allow_partial_joints_goal: true
-    state_tolerance_check: false  # Disable tolerance checking for simplicity
+      - position
+      - velocity

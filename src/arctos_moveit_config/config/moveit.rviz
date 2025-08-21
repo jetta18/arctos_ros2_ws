@@ -19,23 +19,6 @@ Visualization Manager:
         Loop Animation: true
         State Display Time: 0.05 s
         Trajectory Topic: display_planned_path
-      Planning Request:
-        Cartesian Speed:
-          Value: 1
-        Goal Constraint:
-          Value: true
-        Interactive Marker Size:
-          Value: 0.2
-        Planning Group:
-          Value: arm
-        Query Goal State:
-          Value: true
-        Query Start State:
-          Value: false
-        Show Interactive Marker:
-          Value: true
-        Start State:
-          Value: <initial>
       Planning Scene Topic: monitored_planning_scene
       Robot Description: robot_description
       Scene Geometry:
