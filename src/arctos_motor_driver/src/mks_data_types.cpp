@@ -5,6 +5,22 @@
 
 namespace arctos_motor_driver {
 
+// MKS Protocol Constants
+namespace MKSConstants {
+    constexpr double DEGREES_PER_STEP = 360.0 / 16384.0;  // 0x4000 steps per revolution
+    constexpr double DEG_TO_RAD = M_PI / 180.0;
+}
+
+// MKS Command Codes
+namespace MKSCommands {
+    constexpr uint8_t READ_ENCODER = 0x31;
+    constexpr uint8_t READ_SPEED = 0x32;
+    constexpr uint8_t READ_IO_STATUS = 0x34;
+    constexpr uint8_t READ_ENABLE_STATUS = 0x3A;
+    constexpr uint8_t ENABLE_MOTOR = 0xF3;
+    constexpr uint8_t QUERY_STATUS = 0xF1;
+}
+
 // EncoderData Implementation
 
 EncoderData::EncoderData() 
@@ -174,7 +190,11 @@ MKSMotorStatus MKSMotorStatus::fromEnableResponse(const CANFrame& frame) {
     status.timestamp = rclcpp::Clock().now();
     
     // Can be 0xF3 (ENABLE_MOTOR) or 0x3A (READ_ENABLE_STATUS)
-    uint8_t cmd = frame.getCommand();
+    if (frame.dlc == 0) {
+        status.is_valid = false;
+        return status;
+    }
+    uint8_t cmd = frame.data[0];
     if (cmd != MKSCommands::ENABLE_MOTOR && cmd != MKSCommands::READ_ENABLE_STATUS) {
         status.is_valid = false;
         return status;
@@ -270,18 +290,18 @@ int32_t extract32BitSigned(const uint8_t* bytes) {
 }
 
 bool validateFrameForCommand(const CANFrame& frame, uint8_t expected_cmd, uint8_t expected_dlc) {
-    // Check basic frame validity
-    if (!frame.isValid()) {
-        return false;
-    }
-    
     // Check DLC
     if (frame.dlc != expected_dlc) {
         return false;
     }
     
-    // Check command byte
-    if (frame.getCommand() != expected_cmd) {
+    // Check if we have data
+    if (frame.dlc == 0) {
+        return false;
+    }
+    
+    // Check command byte (first byte)
+    if (frame.data[0] != expected_cmd) {
         return false;
     }
     

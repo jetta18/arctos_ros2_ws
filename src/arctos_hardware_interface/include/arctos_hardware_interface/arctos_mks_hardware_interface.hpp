@@ -14,6 +14,7 @@
 #include "rclcpp_lifecycle/state.hpp"
 
 #include "arctos_motor_driver/mks_motor_driver.hpp"
+#include "arctos_motor_driver/mks_motor_manager.hpp"
 
 namespace arctos_hardware_interface
 {
@@ -57,8 +58,12 @@ public:
     const rclcpp::Time & time, const rclcpp::Duration & period) override;
 
 private:
-  // Motor driver instance
-  std::unique_ptr<arctos_motor_driver::MKSMotorDriver> motor_driver_;
+  // Motor driver and manager
+  std::shared_ptr<arctos_motor_driver::MKSMotorDriver> motor_driver_;
+  std::unique_ptr<arctos_motor_driver::MKSMotorManager> motor_manager_;
+  
+  // ROS node for CAN communication
+  rclcpp::Node::SharedPtr can_node_;
 
   // Joint state storage
   std::vector<double> hw_positions_;
@@ -69,11 +74,36 @@ private:
   // Joint names
   std::vector<std::string> joint_names_;
   
-  // CAN interface name (stored for delayed motor driver creation)
+  // CAN interface name
   std::string can_interface_name_;
   
-  // Helper function to get hardware parameters
+  // Helper functions
   std::string getHardwareParameter(const std::string& param_name, const std::string& default_value) const;
+  
+  /**
+   * @brief Synchronously read encoder values from motors
+   * @param timeout_ms Timeout in milliseconds
+   * @return true if all encoders read successfully
+   */
+  bool readInitialEncoderValues(int timeout_ms = 100);
+
+  // Helpers for on_init
+  bool extract_joint_names();
+  bool validate_joint_count() const;
+  bool validate_expected_joints() const;
+  bool validate_joint_interfaces() const;
+  void init_state_vectors();
+  void log_joint_names() const;
+
+  // Clean-code helpers used by on_activate
+  bool init_can_stack();
+  arctos_motor_driver::MotorConfig load_joint_config(const std::string& joint_name) const;
+  bool load_all_joint_configs();
+  bool apply_motor_config(const std::string& joint_name, const arctos_motor_driver::MotorConfig& config);
+  bool apply_all_motor_configs();
+  bool read_initial_encoders_with_settle(int settle_ms, int timeout_ms);
+  void initialize_hw_positions_from_manager();
+  bool enable_all_motors();
 };
 
 }  // namespace arctos_hardware_interface

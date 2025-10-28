@@ -28,6 +28,14 @@ find_package(std_msgs REQUIRED)
 # Add library for new Arctos MKS hardware interface
 add_library(arctos_mks_hardware_interface SHARED
   src/arctos_mks_hardware_interface.cpp
+  src/init/activate_can_stack.cpp
+  src/init/init_joint_validation.cpp
+  src/init/init_joint_setup.cpp
+  src/config/config_loading.cpp
+  src/config/get_hw_parameter.cpp
+  src/config/motor_configuration.cpp
+  src/startup/startup_sequence.cpp
+  src/startup/read_encoders.cpp
 )
 
 # Link the Arctos MKS hardware interface libraries and dependencies

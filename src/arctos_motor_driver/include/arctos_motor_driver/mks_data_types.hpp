@@ -1,10 +1,19 @@
 #ifndef ARCTOS_MOTOR_DRIVER_MKS_DATA_TYPES_HPP_
 #define ARCTOS_MOTOR_DRIVER_MKS_DATA_TYPES_HPP_
 
-#include "can_frame.hpp"
 #include <rclcpp/rclcpp.hpp>
+#include <array>
+#include <cstdint>
+#include <string>
 
 namespace arctos_motor_driver {
+
+// Legacy CANFrame definition for backward compatibility
+struct CANFrame {
+    uint32_t id = 0;
+    uint8_t dlc = 0;
+    std::array<uint8_t, 8> data{};
+};
 
 /**
  * @brief Encoder data extracted from MKS Servo 0x31 response

@@ -11,7 +11,7 @@
                 <plugin>arctos_hardware_interface/ArctosMKSHardwareInterface</plugin>
                 <param name="motor_can_interface">can0</param>
                 <param name="polling_frequency_hz">30</param>
-                <param name="mks_inter_request_delay_us">500</param>
+                <param name="mks_inter_request_delay_us">150</param>
 
         <!-- Motor configuration parameters -->
         <!-- X_joint -->

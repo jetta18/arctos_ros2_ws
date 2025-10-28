@@ -4,6 +4,7 @@
   <!-- Helper macro that injects command & state interface tags for a joint-->
   <xacro:macro name="arctos_control" params="name limit_u:='${pi}' limit_l:='${-pi}'">
     <joint name="${name}">
+      <!-- Command interfaces: position + velocity for trajectory following -->
       <command_interface name="position">
         <param name="min">${limit_l}</param>
         <param name="max">${limit_u}</param>
@@ -12,8 +13,8 @@
         <param name="min">-3.0</param>
         <param name="max">3.0</param>
       </command_interface>
+      <!-- State interface: only position (JointTrajectoryController requirement) -->
       <state_interface name="position"/>
-      <state_interface name="velocity"/>
     </joint>
   </xacro:macro>
 

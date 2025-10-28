@@ -21,6 +21,14 @@
         <joint name="joint_5"/>
         <joint name="joint_6"/>
     </group>
+    <!--END EFFECTOR: Purpose: Represent information about an end effector.-->
+    <end_effector name="gripper" parent_link="Link_6_1" group="gripper" parent_group="arm"/>
+    <!--GROUPS: Representation of a set of joints and links. This can be useful for specifying DOF to plan for, defining arms, end effectors, etc-->
+    <group name="gripper">
+        <link name="Gripper_1"/>
+        <link name="Left_jaw_1"/>
+        <link name="Right_jaw_1"/>
+    </group>
     <!--GROUP STATES: Purpose: Define a named state for a particular group, in terms of joint values. This is useful to define states like 'folded arms'-->
     <group_state name="home" group="arm">
         <joint name="joint_1" value="0"/>
@@ -42,4 +50,8 @@
     <disable_collisions link1="Link_3_1" link2="Link_6_1" reason="Never"/>
     <disable_collisions link1="Link_4_1" link2="Link_5_1" reason="Adjacent"/>
     <disable_collisions link1="Link_5_1" link2="Link_6_1" reason="Adjacent"/>
+    <disable_collisions link1="Link_6_1" link2="Gripper_1" reason="Adjacent"/>
+    <disable_collisions link1="Gripper_1" link2="Left_jaw_1" reason="Adjacent"/>
+    <disable_collisions link1="Gripper_1" link2="Right_jaw_1" reason="Adjacent"/>
+    <disable_collisions link1="Left_jaw_1" link2="Right_jaw_1" reason="Never"/>
 </robot>

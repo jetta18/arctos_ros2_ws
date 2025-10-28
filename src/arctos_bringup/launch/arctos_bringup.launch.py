@@ -16,15 +16,7 @@ def generate_launch_description():
     arctos_description_dir = get_package_share_directory('arctos_description')
     arctos_moveit_dir = get_package_share_directory('arctos_moveit_config')
 
-    # Declare Launch Arguments
-    declare_rviz_arg = DeclareLaunchArgument(
-        "rviz_config_file",
-        default_value=PathJoinSubstitution([arctos_description_dir, "config", "moveit.rviz"]),
-        description="Path to RViz configuration file"
-    )
-
-    # RViz Configuration
-    rviz_config_file = LaunchConfiguration("rviz_config_file")
+    # RViz is launched via MoveIt include
 
     # Get URDF via xacro
     robot_description_content = Command(
@@ -86,19 +78,10 @@ def generate_launch_description():
             PathJoinSubstitution([arctos_moveit_dir, "launch", "move_group.launch.py"])
         )
     )
-
-    moveit_config = MoveItConfigsBuilder("arctos", package_name="arctos_moveit_config").to_moveit_configs()
-
-    # RViz Node
-    rviz_node = Node(
-        package="rviz2",
-        executable="rviz2",
-        name="rviz2",
-        output="screen",
-        arguments=["-d", rviz_config_file],
-        parameters=[
-            moveit_config.to_dict(),
-        ],
+    moveit_rviz_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([arctos_moveit_dir, "launch", "moveit_rviz.launch.py"])
+        )
     )
 
     # Delayed controller spawning to ensure proper startup sequence
@@ -124,11 +107,10 @@ def generate_launch_description():
     delay_rviz_and_moveit_launch = RegisterEventHandler(
         event_handler=OnProcessExit(
             target_action=robot_controller_spawner,
-            on_exit=[rviz_node, move_group_launch]
+            on_exit=[moveit_rviz_launch, move_group_launch]
         ))
     
     return LaunchDescription([
-        declare_rviz_arg,
         LogInfo(msg=["Launching Arctos Robot System..."]),
         
         # Robot description
