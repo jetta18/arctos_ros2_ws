@@ -1,0 +1,46 @@
+/**
+ ******************************************************************************
+ * @file      LinkerScript.ld
+ * @brief     Linker script for STM32H755ZITx (M7 Core) with shared memory
+ ******************************************************************************
+ * Add this section to your M7 linker script to define shared memory region
+ * 
+ * MEMORY section should include:
+ */
+
+/* Example MEMORY configuration (add to your existing linker script) */
+MEMORY
+{
+  /* ... your existing memory regions ... */
+  
+  /* Shared SRAM in D3 domain - accessible by both M7 and M4 */
+  SHARED_RAM (xrw) : ORIGIN = 0x38000000, LENGTH = 64K
+}
+
+/* Add this to your SECTIONS */
+SECTIONS
+{
+  /* ... your existing sections ... */
+  
+  /* Shared data section for M7-M4 communication */
+  .shared_data (NOLOAD) :
+  {
+    . = ALIGN(32);
+    *(.shared_data)
+    *(.shared_data*)
+    . = ALIGN(32);
+  } >SHARED_RAM
+}
+
+/**
+ * Notes:
+ * 1. The D3 SRAM (0x38000000) is accessible by both M7 and M4 cores
+ * 2. NOLOAD attribute prevents initialization by startup code
+ * 3. 32-byte alignment ensures cache coherency
+ * 4. Total D3 SRAM is 64KB on STM32H755
+ * 5. You may need to adjust based on your memory map
+ * 
+ * For M4 core linker script:
+ * - Use the same SHARED_RAM memory region
+ * - Access shared_motor_data via pointer: (SharedMotorData_t*)0x38000000
+ */
