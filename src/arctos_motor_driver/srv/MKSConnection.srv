@@ -1,0 +1,5 @@
+bool connect
+---
+bool success
+string message
+uint8 status_code

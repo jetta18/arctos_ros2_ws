@@ -13,6 +13,15 @@ find_package(rclcpp REQUIRED)
 find_package(can_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(mks_motor_driver REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+
+# Generate service interfaces
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "srv/MKSMotorConfig.srv"
+  "srv/MKSMotorRead.srv"
+  "srv/MKSConnection.srv"
+  DEPENDENCIES
+)
 
 # Create library for MKS data types (ROS2-specific conversions)
 add_library(mks_data_types SHARED
@@ -83,6 +92,27 @@ ament_target_dependencies(mks_motor_manager
   mks_motor_driver
 )
 
+# Create MKS config service node
+add_executable(mks_config_service
+  src/mks_config_service.cpp
+)
+
+target_link_libraries(mks_config_service
+  arctos_mks_driver
+  mks_data_types
+)
+
+target_compile_features(mks_config_service PUBLIC cxx_std_17)
+
+ament_target_dependencies(mks_config_service
+  rclcpp
+  can_msgs
+  mks_motor_driver
+)
+
+rosidl_target_interfaces(mks_config_service
+  ${PROJECT_NAME} "rosidl_typesupport_cpp")
+
 # Install targets
 install(TARGETS 
     mks_data_types
@@ -95,9 +125,20 @@ install(TARGETS
   INCLUDES DESTINATION include
 )
 
+# Install executable separately with correct destination
+install(TARGETS 
+    mks_config_service
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 # Install headers
 install(DIRECTORY include/
   DESTINATION include
+)
+
+# Install launch files
+install(DIRECTORY launch/
+  DESTINATION share/${PROJECT_NAME}/launch
 )
 
 # Export dependencies and targets

@@ -21,47 +21,47 @@ arctos_controller:
       - C_joint
     command_interfaces:
       - position
-      # - velocity
+      - velocity
     state_interfaces:
       - position
 
 
     # Controller configuration
-    action_monitor_rate: 50.0  # Reduced for stability
+    action_monitor_rate: 100.0  # Reduced for stability
     allow_integration_in_goal_trajectories: false
-    allow_nonzero_velocity_at_trajectory_end: true
+    allow_nonzero_velocity_at_trajectory_end: true  # Allow velocity to continue until goal reached
     allow_partial_joints_goal: false
     open_loop_control: true
     # set_last_command_interface_value_as_state_on_activation: true
     
     # Publishing rates
-    state_publish_rate: 50.0  # Match controller update rate
+    state_publish_rate: 100.0  # Match controller update rate
     
     # Timeout settings
     cmd_timeout: 0.0
     
     interpolation_method: "splines"
     
-    # Constraints and tolerances - adjusted for motor response characteristics
+    # Constraints and tolerances - enable goal tolerances
     constraints:
-      stopped_velocity_tolerance: 0.05
-      goal_time: 2.0  # More time for motor response
+      stopped_velocity_tolerance: 0.01  # Consider stopped when velocity < 0.01 rad/s
+      goal_time: 15.0  # Allow 15 seconds to reach goal
       X_joint:
-        trajectory: 0.08  # Looser for motor lag
-        goal: 0.03        
+        trajectory: -1.0  # Disabled - unrestricted movement
+        goal: 0.01       # 0.01 rad tolerance (~0.6°)
       Y_joint:
-        trajectory: 0.05  # Moderate tolerance
-        goal: 0.02
+        trajectory: -1.0  # Disabled - unrestricted movement
+        goal: 0.01       # 0.01 rad tolerance (~0.6°)
       Z_joint:
-        trajectory: 0.05  # Increased from 0.02 to handle lag
-        goal: 0.02
+        trajectory: -1.0  # Disabled - unrestricted movement
+        goal: 0.01       # 0.01 rad tolerance (~0.6°)
       A_joint:
-        trajectory: 0.08
-        goal: 0.03
+        trajectory: -1.0  # Disabled - unrestricted movement
+        goal: 0.01       # 0.01 rad tolerance (~0.6°)
       B_joint:
-        trajectory: 0.08
-        goal: 0.03
+        trajectory: -1.0  # Disabled - unrestricted movement
+        goal: 0.01       # 0.01 rad tolerance (~0.6°)
       C_joint:
-        trajectory: 0.12  # Loosest for fast rotation
-        goal: 0.05
+        trajectory: -1.0  # Disabled - unrestricted movement
+        goal: 0.01       # 0.01 rad tolerance (~0.6°)
 

@@ -8,13 +8,15 @@
     <ros2_control name="${name}" type="system">
 
       <hardware>
-                <plugin>topic_based_ros2_control/TopicBasedSystem</plugin>
+                <!-- <plugin>topic_based_ros2_control/TopicBasedSystem</plugin>
                 <param name="joint_commands_topic">/topic_based_joint_commands</param>
                 <param name="joint_states_topic">/topic_based_custom_joint_states</param>
                 <param name="motor_can_interface">can0</param>
                 <param name="polling_frequency_hz">30</param>
-                <param name="mks_inter_request_delay_us">150</param>
-
+                <param name="mks_inter_request_delay_us">150</param> -->
+        <plugin>arctos_hardware_interface/STM32StepperInterface</plugin>
+        <param name="stm32_host">192.168.178.159</param>
+        <param name="stm32_port">8888</param>
         <!-- Motor configuration parameters -->
         <!-- X_joint -->
         <param name="motors.X_joint.motor_id">1</param>
@@ -28,7 +30,7 @@
         <!-- Y_joint -->
         <param name="motors.Y_joint.motor_id">2</param>
         <param name="motors.Y_joint.gear_ratio">150.0</param>
-        <param name="motors.Y_joint.inverted">true</param>
+        <param name="motors.Y_joint.inverted">false</param>
         <param name="motors.Y_joint.hardware_type">MKS_57D</param>
         <param name="motors.Y_joint.working_current">2400</param>
         <param name="motors.Y_joint.holding_current">70</param>
@@ -55,7 +57,7 @@
         <!-- B_joint -->
         <param name="motors.B_joint.motor_id">5</param>
         <param name="motors.B_joint.gear_ratio">27.3375</param>
-        <param name="motors.B_joint.inverted">true</param>
+        <param name="motors.B_joint.inverted">false</param>
         <param name="motors.B_joint.hardware_type">MKS_42D</param>
         <param name="motors.B_joint.working_current">1000</param>
         <param name="motors.B_joint.holding_current">70</param>
