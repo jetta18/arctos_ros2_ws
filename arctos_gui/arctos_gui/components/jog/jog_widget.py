@@ -17,6 +17,7 @@ from PyQt5.QtWidgets import (
     QGridLayout,
     QScrollArea,
     QGroupBox,
+    QListView,
 )
 
 
@@ -205,6 +206,7 @@ class JogWidget(QWidget):
         """)
         self._axis_combo = QComboBox()
         self._axis_combo.addItems(self.AXIS_LABELS)
+        self._axis_combo.setView(QListView())
         self._axis_combo.setStyleSheet("""
             QComboBox {
                 padding: 6px;
@@ -230,6 +232,20 @@ class JogWidget(QWidget):
                 border-right: 5px solid transparent;
                 border-top: 5px solid #666666;
                 margin-right: 5px;
+            }
+            QComboBox QListView::item {
+                padding: 6px 12px;
+                border: none;
+                min-height: 20px;
+                background-color: transparent;
+            }
+            QComboBox QListView::item:hover {
+                background-color: #f5f5f5;
+                color: #333333;
+            }
+            QComboBox QListView::item:selected {
+                background-color: #0078d4;
+                color: white;
             }
         """)
         jog_layout.addWidget(axis_label, 0, 0)
@@ -567,12 +583,10 @@ class JogWidget(QWidget):
         if self._connected:
             self._log_message("Connection", "Disconnecting from STM32...")
             self._client.disconnect()
-            self._connected = False
-            self._update_status()  # Force immediate update
+            self._update_status()  # Force immediate update based on client state
         else:
             self._log_message("Connection", "Connecting to STM32...")
             if self._client.connect():
-                self._connected = True
-                self._update_status()  # Force immediate update
+                self._update_status()  # Force immediate update based on client state
             else:
                 self._log_message("Error", "Failed to connect to STM32")

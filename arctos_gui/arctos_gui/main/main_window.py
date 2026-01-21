@@ -14,7 +14,7 @@ class ArctosMainWindow(QMainWindow):
     def __init__(self, jog_client, mks_config_client=None) -> None:
         super().__init__()
         self._jog_client = jog_client
-        self._mks_config_client = mks_config_client
+        # mks_config_client is no longer needed - using direct CAN
         self._setup_ui()
         self._apply_modern_style()
 
@@ -59,10 +59,9 @@ class ArctosMainWindow(QMainWindow):
         self._tab_widget.addTab(self._jog_widget, "Jog Control")
 
         # Add MKS config tab
-        if self._mks_config_client is not None:
-            from ..components.mks_config import MKSConfigWidget
-            self._mks_config_widget = MKSConfigWidget(self._mks_config_client)
-            self._tab_widget.addTab(self._mks_config_widget, "MKS Motor Config")
+        from ..components.mks_config import MKSConfigWidget
+        self._mks_config_widget = MKSConfigWidget()
+        self._tab_widget.addTab(self._mks_config_widget, "MKS Motor Config")
 
         layout.addWidget(self._tab_widget)
 

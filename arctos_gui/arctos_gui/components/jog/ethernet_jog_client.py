@@ -12,8 +12,12 @@ from typing import Optional
 STEPPER_PROTOCOL_VERSION = 1
 CMD_MOVE_SINGLE = 0x03
 CMD_GET_STATE = 0x10
+CMD_PING = 0x20
 RESP_OK = 0x00
 RESP_STATE = 0x02
+
+# Must match STM32 firmware (stepper_protocol.h)
+MAX_PACKET_SIZE = 256
 
 # Motor configuration (matching STM32)
 STEPS_PER_REV = 200
@@ -63,8 +67,11 @@ class EthernetJogClient:
                 self._socket.close()
                 self._socket = None
             
-            self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self._socket.settimeout(2.0)
+            # Use UDP, matching STM32 transport on port 8888
+            self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            # Set a moderate timeout for request/response operations
+            self._socket.settimeout(1.0)
+            # "Connect" UDP socket so send/recv use the configured peer
             self._socket.connect((self.host, self.port))
             self._connected = True
             
@@ -74,7 +81,12 @@ class EthernetJogClient:
                 self._reconnect_thread = threading.Thread(target=self._reconnection_monitor, daemon=True)
                 self._reconnect_thread.start()
             
-            # Fetch initial positions
+            # Verify basic communication using a lightweight ping
+            ping_resp = self._send_request(CMD_PING)
+            if not ping_resp or ping_resp[0] != RESP_OK:
+                raise RuntimeError("No valid response from STM32 on PING")
+
+            # Try to fetch initial positions (optional)
             self.update_positions()
             
             print(f"Successfully connected to {self.host}:{self.port}")
@@ -110,36 +122,57 @@ class EthernetJogClient:
         """
         return self._connected
         
-    def _send_command(self, command: int, payload: bytes = b'') -> Optional[bytes]:
-        """Send a command to the STM32.
-        
-        Args:
-            command: Command byte
-            payload: Command payload
+    def _send_frame(self, command: int, payload: bytes = b'') -> bool:
+        """Send a fire-and-forget command frame to the STM32 (no response expected)."""
+        if not self._socket:
+            return False
             
+        self._sequence += 1
+        header = struct.pack('<BBHI', STEPPER_PROTOCOL_VERSION, command, len(payload), self._sequence)
+        
+        try:
+            # Single UDP datagram containing header + payload
+            self._socket.send(header + payload)
+            return True
+        except Exception as e:
+            print(f"Send frame failed: {e}")
+            with self._connection_lock:
+                self._cleanup_connection()
+            return False
+        
+    def _send_request(self, command: int, payload: bytes = b'') -> Optional[bytes]:
+        """Send a request/response command to the STM32.
+        
         Returns:
-            Response data or None if failed
+            Response data (response_type byte + payload) or None if failed/timeout.
         """
-        if not self._connected or not self._socket:
+        if not self._socket:
             return None
             
         self._sequence += 1
         header = struct.pack('<BBHI', STEPPER_PROTOCOL_VERSION, command, len(payload), self._sequence)
         
         try:
-            self._socket.sendall(header + payload)
-            resp_header = self._socket.recv(8)
-            if len(resp_header) < 8:
+            # Send request as single UDP datagram
+            self._socket.send(header + payload)
+            # Receive full response (header + payload) in a single datagram
+            data = self._socket.recv(MAX_PACKET_SIZE)
+            if len(data) < 8:
                 return None
-                
-            version, response, length, seq = struct.unpack('<BBHI', resp_header)
-            payload_data = b''
-            if length > 0:
-                payload_data = self._socket.recv(length)
-                
+            
+            version, response, length, seq = struct.unpack('<BBHI', data[:8])
+            if version != STEPPER_PROTOCOL_VERSION:
+                return None
+            if len(data) < 8 + length:
+                return None
+            
+            payload_data = data[8:8 + length]
             return bytes([response]) + payload_data
+        except socket.timeout:
+            print("Request timed out")
+            return None
         except Exception as e:
-            print(f"Send command failed: {e}")
+            print(f"Send request failed: {e}")
             with self._connection_lock:
                 self._cleanup_connection()
             return None
@@ -184,14 +217,15 @@ class EthernetJogClient:
         # Payload format: axis_index (uint8), target_position (float), velocity (float), acceleration (float)
         payload = struct.pack('<Bfff', axis_index, new_position_steps, velocity_steps, 50.0)
         
-        response = self._send_command(CMD_MOVE_SINGLE, payload)
+        # UDP transport does not provide a response for CMD_MOVE_SINGLE in current firmware.
+        # We treat this as fire-and-forget and track the expected position locally.
+        success = self._send_frame(CMD_MOVE_SINGLE, payload)
         
-        if response and response[0] == RESP_OK:
-            # Update our tracked position
+        if success:
             self.current_positions[axis_index] = new_position_steps
-            print(f"Jog command succeeded for axis {axis_index}")
+            print(f"Jog command sent for axis {axis_index}")
         else:
-            print(f"Jog command failed for axis {axis_index}, response={response}")
+            print(f"Jog command failed to send for axis {axis_index}")
             # Try to refresh positions on failure
             self.update_positions()
             
@@ -205,14 +239,10 @@ class EthernetJogClient:
                 
             # Check if connection is still valid
             if self._connected and self._socket:
-                try:
-                    # Simple health check - try to get state
-                    response = self._send_command(CMD_GET_STATE)
-                    if response is None:
-                        print("Connection lost, attempting reconnection...")
-                        with self._connection_lock:
-                            self._cleanup_connection()
-                except:
+                # Simple health check - send ping
+                response = self._send_request(CMD_PING)
+                if not response or response[0] != RESP_OK:
+                    print("Connection lost, attempting reconnection...")
                     with self._connection_lock:
                         self._cleanup_connection()
             
@@ -231,10 +261,12 @@ class EthernetJogClient:
     def update_positions(self) -> None:
         """Update current positions from STM32."""
         if not self._connected:
-            return
+            return False
             
         # Use GET_STATE to read current positions
-        response = self._send_command(CMD_GET_STATE)
-        if response and response[0] == RESP_STATE:
+        response = self._send_request(CMD_GET_STATE)
+        if response and response[0] == RESP_STATE and len(response) >= 1 + 24:
             positions = struct.unpack('<6f', response[1:25])
             self.current_positions = list(positions)
+            return True
+        return False
