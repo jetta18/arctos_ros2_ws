@@ -20,24 +20,9 @@ from PyQt5.QtWidgets import (
     QListView,
 )
 
-
-class JogClient(Protocol):
-    """Abstraction for something that can execute jog commands.
-
-    Keeps the Qt layer independent from ROS specifics.
-    """
-
-    def send_jog(self, axis_index: int, delta_rad: float, velocity_rad_s: float) -> None:
-        ...
-
-    def connect(self) -> bool:
-        ...
-
-    def disconnect(self) -> None:
-        ...
-
-    def is_connected(self) -> bool:
-        ...
+# Import the ROS-based jog client implementation
+from .ros_jog_client import ArctosRosJogClient
+from .jog_client_protocol import JogClient
 
 
 class JogWidget(QWidget):
@@ -590,3 +575,37 @@ class JogWidget(QWidget):
                 self._update_status()  # Force immediate update based on client state
             else:
                 self._log_message("Error", "Failed to connect to STM32")
+
+
+# -------------------------------------------------------------------------
+# Minimal PyQt5 demo using the ROS-based jog client
+# -------------------------------------------------------------------------
+if __name__ == '__main__':
+    import sys
+    from PyQt5.QtWidgets import QApplication, QMainWindow
+
+    class JogDemoWindow(QMainWindow):
+        def __init__(self):
+            super().__init__()
+            self.setWindowTitle("Arctos Jog Demo (ROS2)")
+            self.resize(600, 700)
+
+            # Create ROS-based jog client
+            jog_client = ArctosRosJogClient()
+
+            # Create jog widget with the client
+            jog_widget = JogWidget(jog_client)
+            self.setCentralWidget(jog_widget)
+
+        def closeEvent(self, event):
+            # Clean shutdown of ROS client
+            central = self.centralWidget()
+            if hasattr(central, '_client'):
+                central._client.disconnect()
+            super().closeEvent(event)
+
+    # Run demo
+    app = QApplication(sys.argv)
+    win = JogDemoWindow()
+    win.show()
+    sys.exit(app.exec_())

@@ -1,6 +1,11 @@
-"""Jog component module."""
+"""Jog control components for the Arctos GUI."""
 
-from .jog_widget import JogWidget, JogClient
-from .ethernet_jog_client import EthernetJogClient
+from .jog_client_protocol import JogClient
+from .jog_widget import JogWidget
+from .ros_jog_client import ArctosRosJogClient
 
-__all__ = ['JogWidget', 'JogClient', 'EthernetJogClient']
+__all__ = [
+    "JogClient",
+    "JogWidget",
+    "ArctosRosJogClient",
+]

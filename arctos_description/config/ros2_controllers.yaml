@@ -4,11 +4,26 @@ controller_manager:
   ros__parameters:
     update_rate: 100  # Hz - Further reduced to prevent motor overload
 
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    arctos_position_controller:
+      type: position_controllers/JointGroupPositionController
+
     arctos_controller:
       type: "joint_trajectory_controller/JointTrajectoryController"
 
-    joint_state_broadcaster:
-      type: joint_state_broadcaster/JointStateBroadcaster
+arctos_position_controller:
+  ros__parameters:
+    joints:
+      - X_joint
+      - Y_joint
+      - Z_joint
+      - A_joint
+      - B_joint
+      - C_joint
+    # Für JointGroupPositionController reicht das i.d.R.
+    # (er nutzt immer die position-Command-Interfaces)
 
 arctos_controller:
   ros__parameters:
@@ -24,7 +39,6 @@ arctos_controller:
       - velocity
     state_interfaces:
       - position
-
 
     # Controller configuration
     action_monitor_rate: 100.0  # Reduced for stability

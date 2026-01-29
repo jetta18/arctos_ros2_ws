@@ -106,6 +106,14 @@ hardware_interface::CallbackReturn STM32StepperInterface::on_configure(
     return hardware_interface::CallbackReturn::ERROR;
   }
 
+  // Perform protocol-level handshake (PING) to ensure STM32 is ready
+  if (!ping_stm32())
+  {
+    RCLCPP_ERROR(logger_, "STM32 did not respond to PING handshake");
+    disconnect_from_stm32();
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+
   RCLCPP_INFO(logger_, "Successfully configured");
   return hardware_interface::CallbackReturn::SUCCESS;
 }
@@ -420,6 +428,56 @@ bool STM32StepperInterface::read_state()
   }
 
   return true;
+}
+
+bool STM32StepperInterface::ping_stm32()
+{
+  if (!connected_ || socket_fd_ < 0)
+  {
+    return false;
+  }
+
+  struct __attribute__((packed)) {
+    uint8_t version;
+    uint8_t command;
+    uint16_t length;
+    uint32_t sequence;
+  } packet;
+
+  struct __attribute__((packed)) {
+    uint8_t version;
+    uint8_t response;
+    uint16_t length;
+    uint32_t sequence;
+  } response;
+
+  for (int attempt = 0; attempt < PING_MAX_ATTEMPTS; ++attempt)
+  {
+    packet.version = PROTOCOL_VERSION;
+    packet.command = CMD_PING;
+    packet.length = 0;
+    packet.sequence = ++sequence_number_;
+
+    ssize_t sent = send(socket_fd_, &packet, sizeof(packet), 0);
+    if (sent != sizeof(packet))
+    {
+      std::lock_guard<std::mutex> lock(connection_mutex_);
+      connected_ = false;
+      return false;
+    }
+
+    ssize_t received = recv(socket_fd_, &response, sizeof(response), 0);
+    if (received == sizeof(response) &&
+        response.version == PROTOCOL_VERSION &&
+        response.response == RESP_OK)
+    {
+      return true;
+    }
+
+    std::this_thread::sleep_for(PING_RETRY_DELAY);
+  }
+
+  return false;
 }
 
 // Unit conversion functions

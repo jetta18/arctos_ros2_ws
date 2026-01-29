@@ -68,6 +68,7 @@ private:
                         const std::vector<double>& velocities);
   bool read_state();
   void attempt_reconnection();
+  bool ping_stm32();
 
   // Unit conversion
   double rad_to_steps(double radians, size_t joint_index) const;
@@ -103,9 +104,14 @@ private:
   // Protocol constants
   static constexpr uint8_t PROTOCOL_VERSION = 1;
   static constexpr uint8_t CMD_JTC_STREAM = 0x01;
+  static constexpr uint8_t CMD_PING = 0x20;
   static constexpr uint8_t CMD_GET_STATE = 0x10;
   static constexpr uint8_t RESP_OK = 0x00;
   static constexpr uint8_t RESP_STATE = 0x02;
+
+  // Handshake configuration
+  static constexpr int PING_MAX_ATTEMPTS = 5;
+  static constexpr std::chrono::milliseconds PING_RETRY_DELAY{200};
 
   // Sequence tracking
   uint32_t sequence_number_;
