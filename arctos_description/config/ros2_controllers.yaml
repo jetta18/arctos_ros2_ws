@@ -39,6 +39,7 @@ arctos_controller:
       - velocity
     state_interfaces:
       - position
+      - velocity
 
     # Controller configuration
     action_monitor_rate: 100.0  # Reduced for stability
@@ -78,4 +79,3 @@ arctos_controller:
       C_joint:
         trajectory: -1.0  # Disabled - unrestricted movement
         goal: 0.01       # 0.01 rad tolerance (~0.6°)
-

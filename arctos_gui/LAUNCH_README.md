@@ -1,65 +1,42 @@
 # Arctos GUI Launch System
 
-Die Arctos GUI kann jetzt über eine Launch-Datei gestartet werden, die automatisch alle benötigten Services mit startet.
+Die Launch-Datei `arctos_gui.launch.py` startet das ros2_control Setup (URDF + Controller Manager + Controller) und danach die GUI.
 
 ## Verwendung
 
-### Standard-Start (mit MKS Config Service)
+### Standard-Start (ros2_control + GUI)
 
 ```bash
 ros2 launch arctos_gui arctos_gui.launch.py
 ```
 
 Dies startet:
-- **MKS Config Service** auf `can0`
-- **Arctos GUI** mit allen Komponenten
-
-### Mit anderem CAN Interface
-
-```bash
-ros2 launch arctos_gui arctos_gui.launch.py can_interface:=can1
-```
-
-### Ohne MKS Config Service
-
-```bash
-ros2 launch arctos_gui arctos_gui.launch.py enable_mks_config:=false
-```
+- `robot_state_publisher` (URDF/Xacro aus `arctos_description`)
+- `ros2_control_node` (controller_manager + Hardware Interface)
+- `joint_state_broadcaster`
+- `arctos_controller`
+- `arctos_gui`
 
 ## Launch-Parameter
 
-| Parameter | Default | Beschreibung |
-|-----------|---------|--------------|
-| `can_interface` | `can0` | CAN Interface für MKS Motor Driver |
-| `enable_mks_config` | `true` | MKS Config Service aktivieren/deaktivieren |
+Derzeit keine.
 
-## Komponenten
+## Hinweise (MKS Motor Config)
 
-Die Launch-Datei startet folgende Nodes:
-
-1. **mks_config_service** (optional)
-   - Package: `arctos_motor_driver`
-   - Stellt Services für MKS Motor Konfiguration bereit
-   - Verbindet sich mit CAN-Bus
-
-2. **arctos_gui**
-   - Package: `arctos_gui`
-   - PyQt5 GUI mit folgenden Tabs:
-     - Jog Control
-     - STM32 Debug
-     - MKS Motor Config
+- Der MKS Motor Config Tab nutzt direkte CAN-Kommunikation (`python-can` + `mks_servo_can`). Es gibt keinen separaten ROS Service Node mehr.
+- Das CAN Interface (z.B. `can0`) muss ggf. vorab konfiguriert werden (500000 bitrate).
 
 ## Build & Installation
 
 ```bash
-cd ~/arctos_ros2_ws
-colcon build --packages-select arctos_gui arctos_motor_driver
+cd ~/arctos_ws
+colcon build --symlink-install
 source install/setup.bash
 ```
 
 ## Voraussetzungen
 
-### CAN-Bus Setup
+### CAN-Bus Setup (optional, nur für MKS Tab)
 
 ```bash
 # CAN Interface konfigurieren
@@ -73,8 +50,10 @@ ip link show can0
 ### System-Dependencies
 
 ```bash
-sudo apt-get install python3-pyqt5
+sudo apt-get install python3-pyqt5 python3-can
 ```
+
+Für den MKS Tab muss außerdem das Python-Modul `mks_servo_can` (mks-servo-can Repo/Library) installiert sein.
 
 ## Troubleshooting
 
@@ -88,15 +67,10 @@ ros2 node list
 ros2 launch arctos_gui arctos_gui.launch.py --screen
 ```
 
-### MKS Config Service Fehler
+### Python-Dependency fehlt (MKS Tab)
 
-```bash
-# Nur GUI starten (ohne MKS Service)
-ros2 launch arctos_gui arctos_gui.launch.py enable_mks_config:=false
-
-# Service separat starten
-ros2 launch arctos_motor_driver mks_config_service.launch.py
-```
+- `ModuleNotFoundError: No module named 'can'`: `sudo apt-get install python3-can`
+- `ModuleNotFoundError: No module named 'mks_servo_can'`: mks-servo-can Python Library installieren
 
 ### CAN-Bus Probleme
 
@@ -110,22 +84,10 @@ sudo ip link set can0 up
 candump can0
 ```
 
-## Vorteile der Launch-Datei
+## Alternative: Nur GUI starten
 
-✅ **Ein Befehl** - Startet alle benötigten Komponenten  
-✅ **Konfigurierbar** - Parameter für verschiedene Setups  
-✅ **Konsistent** - Immer die gleiche Startreihenfolge  
-✅ **Wartbar** - Zentrale Konfiguration  
-✅ **Flexibel** - Services können optional aktiviert werden  
-
-## Alternative: Einzelne Komponenten starten
-
-Falls gewünscht, können die Komponenten auch einzeln gestartet werden:
+Wenn ros2_control + Controller bereits laufen:
 
 ```bash
-# Terminal 1: MKS Config Service
-ros2 run arctos_motor_driver mks_config_service --ros-args -p can_interface:=can0
-
-# Terminal 2: GUI
 ros2 run arctos_gui arctos_gui
 ```

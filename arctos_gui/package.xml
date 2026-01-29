@@ -9,8 +9,10 @@
 
   <depend>rclpy</depend>
   <depend>geometry_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>trajectory_msgs</depend>
   <depend>python3-pyqt5</depend>
-  <depend>arctos_motor_driver</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

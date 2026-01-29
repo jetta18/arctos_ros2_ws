@@ -1,108 +1,103 @@
 """Advanced configuration tab for MKS servo motors."""
 
+from __future__ import annotations
+
+from typing import Optional
+
+from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QGroupBox, QLabel, QPushButton,
-    QCheckBox, QFormLayout, QMessageBox
+    QCheckBox,
+    QGroupBox,
+    QLabel,
+    QMessageBox,
+    QVBoxLayout,
+    QWidget,
 )
-from PyQt5.QtCore import Qt, pyqtSignal
+
+from ...ui.theme import set_role
+from ...ui.widgets import action_button
+from ...ui.widgets import connect as qt_connect
+
+
+_CHECKED = 2
 
 
 class AdvancedConfigTab(QWidget):
-    """Advanced tab for MKS motor configuration.
-    
-    Provides controls for limit switch remapping and factory reset.
+    """Advanced motor configuration.
+
+    - Limit switch remapping
+    - Factory reset
     """
-    
-    operation_requested = pyqtSignal(str, dict)  # operation_name, parameters
-    
-    def __init__(self, parent=None):
-        """Initialize the advanced configuration tab.
-        
-        Args:
-            parent: Parent widget
-        """
+
+    operation_requested = pyqtSignal(str, dict)
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
-        self.init_ui()
-    
-    def init_ui(self):
-        """Initialize the user interface."""
-        layout = QVBoxLayout()
-        layout.setSpacing(10)
+        self._init_ui()
+
+    def _init_ui(self) -> None:
+        layout = QVBoxLayout(self)
+        layout.setSpacing(12)
         layout.setContentsMargins(10, 10, 10, 10)
-        
-        # Limit Switch Group
-        limit_group = QGroupBox("Limit Switch Configuration")
-        limit_layout = QVBoxLayout()
-        limit_layout.setSpacing(10)
-        
-        limit_info = QLabel(
+
+        layout.addWidget(self._build_limit_group())
+        layout.addWidget(self._build_restore_group())
+        layout.addStretch(1)
+
+    def _build_limit_group(self) -> QGroupBox:
+        group = QGroupBox("Limit Switch Configuration")
+        v = QVBoxLayout(group)
+        v.setSpacing(10)
+
+        info = QLabel(
             "Enable limit switch remapping to use external limit switches "
             "instead of built-in homing switches."
         )
-        limit_info.setWordWrap(True)
-        limit_info.setStyleSheet("color: #666; font-size: 12px; margin-bottom: 10px;")
-        limit_layout.addWidget(limit_info)
-        
+        info.setWordWrap(True)
+        set_role(info, "muted")
+        v.addWidget(info)
+
         self.limit_remap_check = QCheckBox("Enable Limit Switch Remapping")
-        self.limit_remap_check.setChecked(False)
-        self.limit_remap_check.stateChanged.connect(self._on_limit_remap_changed)
-        limit_layout.addWidget(self.limit_remap_check)
-        
-        limit_group.setLayout(limit_layout)
-        layout.addWidget(limit_group)
-        
-        # Factory Reset Group
-        restore_group = QGroupBox("Factory Reset")
-        restore_layout = QVBoxLayout()
-        restore_layout.setSpacing(10)
-        
-        restore_warning = QLabel("⚠️ This will restore all motor parameters to factory defaults!")
-        restore_warning.setStyleSheet("color: #FF5722; font-weight: bold;")
-        restore_layout.addWidget(restore_warning)
-        
-        restore_info = QLabel(
-            "All custom settings including work mode, currents, subdivisions, "
-            "and homing parameters will be lost."
+        qt_connect(self.limit_remap_check.stateChanged, self._on_limit_remap_changed)
+        v.addWidget(self.limit_remap_check)
+
+        return group
+
+    def _build_restore_group(self) -> QGroupBox:
+        group = QGroupBox("Factory Reset")
+        v = QVBoxLayout(group)
+        v.setSpacing(10)
+
+        warning = QLabel("This will restore all motor parameters to factory defaults.")
+        set_role(warning, "danger")
+        warning.setWordWrap(True)
+        v.addWidget(warning)
+
+        info = QLabel(
+            "All custom settings including work mode, currents, subdivisions, and homing "
+            "parameters will be lost."
         )
-        restore_info.setWordWrap(True)
-        restore_info.setStyleSheet("color: #666; font-size: 12px; margin: 10px 0;")
-        restore_layout.addWidget(restore_info)
-        
-        restore_btn = QPushButton("Restore Factory Defaults")
-        restore_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #FF5722;
-                color: white;
-                font-weight: bold;
-                padding: 10px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #E64A19;
-            }
-        """)
-        restore_btn.clicked.connect(self._on_restore_defaults)
-        restore_layout.addWidget(restore_btn)
-        
-        restore_group.setLayout(restore_layout)
-        layout.addWidget(restore_group)
-        
-        layout.addStretch()
-        self.setLayout(layout)
-    
-    def _on_limit_remap_changed(self, state):
-        """Handle limit remap checkbox change."""
-        enable = state == Qt.Checked
-        self.operation_requested.emit('set_limit_remap', {'enable': enable})
-    
-    def _on_restore_defaults(self):
-        """Handle factory reset button click with confirmation dialog."""
+        info.setWordWrap(True)
+        set_role(info, "muted")
+        v.addWidget(info)
+
+        restore_btn = action_button("Restore Factory Defaults", variant="danger")
+        qt_connect(restore_btn.clicked, self._on_restore_defaults)
+        v.addWidget(restore_btn)
+
+        return group
+
+    def _on_limit_remap_changed(self, state: int) -> None:
+        self.operation_requested.emit("set_limit_remap", {"enable": state == _CHECKED})
+
+    def _on_restore_defaults(self) -> None:
         reply = QMessageBox.warning(
-            self, 'Confirm Factory Reset',
-            'Are you sure you want to restore factory defaults?\n\n'
-            'All custom settings will be lost!',
+            self,
+            "Confirm Factory Reset",
+            "Are you sure you want to restore factory defaults?\n\n"
+            "All custom settings will be lost!",
             QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
+            QMessageBox.No,
         )
         if reply == QMessageBox.Yes:
-            self.operation_requested.emit('restore_defaults', {})
+            self.operation_requested.emit("restore_defaults", {})

@@ -59,11 +59,11 @@ def generate_launch_description():
         output="screen",
     )
 
-    # 4) Forward Command Controller (arctos_position_controller) spawnen
-    position_controller_spawner = Node(
+    # 4) Joint Trajectory Controller (arctos_controller) spawnen
+    trajectory_controller_spawner = Node(
         package="controller_manager",
         executable="spawner",
-        arguments=["arctos_position_controller", "--controller-manager", "/controller_manager"],
+        arguments=["arctos_controller", "--controller-manager", "/controller_manager"],
         output="screen",
     )
 
@@ -78,7 +78,7 @@ def generate_launch_description():
     # Zeitliche Staffelung:
     # - erst control_node starten
     # - nach 3 s joint_state_broadcaster
-    # - nach 5 s arctos_position_controller
+    # - nach 5 s arctos_controller
     # - nach 7 s GUI
 
     delayed_joint_state_broadcaster = TimerAction(
@@ -86,9 +86,9 @@ def generate_launch_description():
         actions=[joint_state_broadcaster_spawner],
     )
 
-    delayed_position_controller = TimerAction(
+    delayed_trajectory_controller = TimerAction(
         period=5.0,
-        actions=[position_controller_spawner],
+        actions=[trajectory_controller_spawner],
     )
 
     delayed_gui = TimerAction(
@@ -105,7 +105,7 @@ def generate_launch_description():
 
         # Controller-Spawner (zeitlich verzögert)
         delayed_joint_state_broadcaster,
-        delayed_position_controller,
+        delayed_trajectory_controller,
 
         # GUI (nachdem Controller aktiv sein sollten)
         delayed_gui,

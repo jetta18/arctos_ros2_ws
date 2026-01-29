@@ -1,329 +1,233 @@
 """Data reading tab for MKS servo motors."""
 
+from __future__ import annotations
+
+from typing import Optional
+
+from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel, 
-    QPushButton, QComboBox, QFormLayout, QTextEdit
+    QComboBox,
+    QFormLayout,
+    QGroupBox,
+    QLabel,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
 )
-from PyQt5.QtCore import Qt, pyqtSignal
+
+from ...ui.theme import set_role
+from ...ui.widgets import action_button
+from ...ui.widgets import action_button_row
+from ...ui.widgets import connect as qt_connect
+from ...ui.widgets import field_label
+
+
+_MOTOR_OPTIONS = [
+    "X - Joint 1",
+    "Y - Joint 2",
+    "Z - Joint 3",
+    "A - Joint 4",
+    "B - Joint 5",
+    "C - Joint 6",
+]
+
+_ACCENT = "#2563eb"
+_MUTED = "#6b7280"
+_SUCCESS = "#16a34a"
+_DANGER = "#dc2626"
+_WARNING = "#f59e0b"
 
 
 class DataReadTab(QWidget):
-    """Data reading tab for MKS motors.
-    
-    Provides controls for reading encoder, speed, IO, and motor status.
-    """
-    
-    operation_requested = pyqtSignal(str, dict)  # operation_name, parameters
-    
-    def __init__(self, parent=None):
-        """Initialize the data reading tab.
-        
-        Args:
-            parent: Parent widget
-        """
+    """Read encoder, speed, IO, and motor status."""
+
+    operation_requested = pyqtSignal(str, dict)
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
-        self.init_ui()
-    
-    def init_ui(self):
-        """Initialize the user interface."""
-        layout = QVBoxLayout()
-        layout.setSpacing(10)
-        layout.setContentsMargins(10, 10, 10, 10)
-        
-        # Motor Selection
-        motor_select_group = QGroupBox("Motor Selection")
-        motor_select_layout = QFormLayout()
-        motor_select_layout.setSpacing(10)
-        motor_select_layout.setLabelAlignment(Qt.AlignRight)
-        
-        self.motor_combo = QComboBox()
-        self.motor_combo.addItems([
-            "X - Joint 1",
-            "Y - Joint 2", 
-            "Z - Joint 3",
-            "A - Joint 4",
-            "B - Joint 5",
-            "C - Joint 6"
-        ])
-        self.motor_combo.currentIndexChanged.connect(self._on_motor_changed)
-        motor_select_layout.addRow("Select Motor:", self.motor_combo)
-        
-        self.motor_id_label = QLabel("Motor ID: 1")
-        self.motor_id_label.setStyleSheet("font-weight: bold; color: #1976D2;")
-        motor_select_layout.addRow("", self.motor_id_label)
-        
-        motor_select_group.setLayout(motor_select_layout)
-        layout.addWidget(motor_select_group)
-        
-        # Read Controls
-        read_group = QGroupBox("Data Read Operations")
-        read_layout = QVBoxLayout()
-        read_layout.setSpacing(10)
-        
-        # Read buttons in grid
-        button_layout = QVBoxLayout()
-        
-        # First row - Position and Speed
-        row1_layout = QHBoxLayout()
-        
-        encoder_btn = QPushButton("Read Encoder")
-        encoder_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #2196F3;
-                color: white;
-                font-weight: bold;
-                padding: 10px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #1976D2;
-            }
-        """)
-        encoder_btn.clicked.connect(self._on_read_encoder)
-        row1_layout.addWidget(encoder_btn)
-        
-        speed_btn = QPushButton("Read Speed")
-        speed_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #00BCD4;
-                color: white;
-                font-weight: bold;
-                padding: 10px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #00ACC1;
-            }
-        """)
-        speed_btn.clicked.connect(self._on_read_speed)
-        row1_layout.addWidget(speed_btn)
-        
-        button_layout.addLayout(row1_layout)
-        
-        # Second row - IO and Status
-        row2_layout = QHBoxLayout()
-        
-        io_btn = QPushButton("Read I/O Status")
-        io_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #FF9800;
-                color: white;
-                font-weight: bold;
-                padding: 10px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #F57C00;
-            }
-        """)
-        io_btn.clicked.connect(self._on_read_io_status)
-        row2_layout.addWidget(io_btn)
-        
-        status_btn = QPushButton("Read Motor Status")
-        status_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #9C27B0;
-                color: white;
-                font-weight: bold;
-                padding: 10px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #7B1FA2;
-            }
-        """)
-        status_btn.clicked.connect(self._on_read_motor_status)
-        row2_layout.addWidget(status_btn)
-        
-        button_layout.addLayout(row2_layout)
-        
-        read_layout.addLayout(button_layout)
-        
-        # Read all button
-        read_all_btn = QPushButton("Read All Data")
-        read_all_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                font-weight: bold;
-                padding: 12px;
-                border-radius: 4px;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-        """)
-        read_all_btn.clicked.connect(self._on_read_all)
-        read_layout.addWidget(read_all_btn)
-        
-        read_group.setLayout(read_layout)
-        layout.addWidget(read_group)
-        
-        # Data Display
-        display_group = QGroupBox("Data Display")
-        display_layout = QVBoxLayout()
-        display_layout.setSpacing(5)
-        
-        # Create display widgets for different data types
-        self.encoder_display = QTextEdit()
-        self.encoder_display.setMaximumHeight(80)
-        self.encoder_display.setHtml("<span style='color: #666;'>No encoder data</span>")
-        display_layout.addWidget(QLabel("Encoder Position:"))
-        display_layout.addWidget(self.encoder_display)
-        
-        self.speed_display = QTextEdit()
-        self.speed_display.setMaximumHeight(60)
-        self.speed_display.setHtml("<span style='color: #666;'>No speed data</span>")
-        display_layout.addWidget(QLabel("Motor Speed:"))
-        display_layout.addWidget(self.speed_display)
-        
-        self.io_display = QTextEdit()
-        self.io_display.setMaximumHeight(100)
-        self.io_display.setHtml("<span style='color: #666;'>No I/O data</span>")
-        display_layout.addWidget(QLabel("I/O Status:"))
-        display_layout.addWidget(self.io_display)
-        
-        self.motor_status_display = QTextEdit()
-        self.motor_status_display.setMaximumHeight(120)
-        self.motor_status_display.setHtml("<span style='color: #666;'>No motor status data</span>")
-        display_layout.addWidget(QLabel("Motor Status:"))
-        display_layout.addWidget(self.motor_status_display)
-        
-        display_group.setLayout(display_layout)
-        layout.addWidget(display_group)
-        
-        layout.addStretch()
-        self.setLayout(layout)
-        
-        # Initialize with first motor selected
+        self._init_ui()
         self._on_motor_changed(0)
-    
-    def _on_motor_changed(self, index):
-        """Handle motor selection change.
-        
-        Args:
-            index: Index of selected motor in combo box
-        """
-        motor_mapping = {
-            0: 1,  # X - Joint 1
-            1: 2,  # Y - Joint 2
-            2: 3,  # Z - Joint 3
-            3: 4,  # A - Joint 4
-            4: 5,  # B - Joint 5
-            5: 6   # C - Joint 6
-        }
-        
-        motor_id = motor_mapping[index]
+
+    def _init_ui(self) -> None:
+        layout = QVBoxLayout(self)
+        layout.setSpacing(12)
+        layout.setContentsMargins(10, 10, 10, 10)
+
+        layout.addWidget(self._build_motor_selection_group())
+        layout.addWidget(self._build_read_controls_group())
+        layout.addWidget(self._build_display_group())
+        layout.addStretch(1)
+
+    def _build_motor_selection_group(self) -> QGroupBox:
+        group = QGroupBox("Motor Selection")
+        form = QFormLayout(group)
+        form.setSpacing(10)
+        form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
+
+        self.motor_combo = QComboBox()
+        self.motor_combo.addItems(_MOTOR_OPTIONS)
+        qt_connect(self.motor_combo.currentIndexChanged, self._on_motor_changed)
+        form.addRow(field_label("Select Motor:"), self.motor_combo)
+
+        self.motor_id_label = QLabel("Motor ID: 1")
+        set_role(self.motor_id_label, "accent")
+        form.addRow(QLabel(""), self.motor_id_label)
+
+        return group
+
+    def _build_read_controls_group(self) -> QGroupBox:
+        group = QGroupBox("Data Read Operations")
+        v = QVBoxLayout(group)
+        v.setSpacing(10)
+
+        encoder_btn = action_button("Read Encoder")
+        qt_connect(encoder_btn.clicked, self._on_read_encoder)
+
+        speed_btn = action_button("Read Speed")
+        qt_connect(speed_btn.clicked, self._on_read_speed)
+
+        v.addWidget(action_button_row(encoder_btn, speed_btn))
+
+        io_btn = action_button("Read I/O Status")
+        qt_connect(io_btn.clicked, self._on_read_io_status)
+
+        status_btn = action_button("Read Motor Status")
+        qt_connect(status_btn.clicked, self._on_read_motor_status)
+
+        v.addWidget(action_button_row(io_btn, status_btn))
+
+        read_all_btn = action_button("Read All Data", variant="primary")
+        qt_connect(read_all_btn.clicked, self._on_read_all)
+        v.addWidget(read_all_btn)
+
+        return group
+
+    def _build_display_group(self) -> QGroupBox:
+        group = QGroupBox("Data Display")
+        v = QVBoxLayout(group)
+        v.setSpacing(6)
+
+        v.addWidget(field_label("Encoder Position:"))
+        self.encoder_display = QTextEdit()
+        self.encoder_display.setReadOnly(True)
+        self.encoder_display.setMaximumHeight(80)
+        set_role(self.encoder_display, "output")
+        v.addWidget(self.encoder_display)
+
+        v.addWidget(field_label("Motor Speed:"))
+        self.speed_display = QTextEdit()
+        self.speed_display.setReadOnly(True)
+        self.speed_display.setMaximumHeight(60)
+        set_role(self.speed_display, "output")
+        v.addWidget(self.speed_display)
+
+        v.addWidget(field_label("I/O Status:"))
+        self.io_display = QTextEdit()
+        self.io_display.setReadOnly(True)
+        self.io_display.setMaximumHeight(100)
+        set_role(self.io_display, "output")
+        v.addWidget(self.io_display)
+
+        v.addWidget(field_label("Motor Status:"))
+        self.motor_status_display = QTextEdit()
+        self.motor_status_display.setReadOnly(True)
+        self.motor_status_display.setMaximumHeight(120)
+        set_role(self.motor_status_display, "output")
+        v.addWidget(self.motor_status_display)
+
+        self.clear_displays()
+        return group
+
+    def get_motor_id(self) -> int:
+        return int(self.motor_combo.currentIndex()) + 1
+
+    def clear_displays(self) -> None:
+        muted = f"<span style='color: {_MUTED};'>No data</span>"
+        self.encoder_display.setHtml(muted)
+        self.speed_display.setHtml(muted)
+        self.io_display.setHtml(muted)
+        self.motor_status_display.setHtml(muted)
+
+    def _on_motor_changed(self, index: int) -> None:
+        motor_id = int(index) + 1
         self.motor_id_label.setText(f"Motor ID: {motor_id}")
-        
-        # Clear displays when motor changes
         self.clear_displays()
-    
-    def clear_displays(self):
-        """Clear all data displays."""
-        self.encoder_display.setHtml("<span style='color: #666;'>No encoder data</span>")
-        self.speed_display.setHtml("<span style='color: #666;'>No speed data</span>")
-        self.io_display.setHtml("<span style='color: #666;'>No I/O data</span>")
-        self.motor_status_display.setHtml("<span style='color: #666;'>No motor status data</span>")
-    
-    def get_motor_id(self):
-        """Get the currently selected motor ID.
-        
-        Returns:
-            int: Motor ID (1-6)
-        """
-        motor_mapping = {
-            0: 1,  # X - Joint 1
-            1: 2,  # Y - Joint 2
-            2: 3,  # Z - Joint 3
-            3: 4,  # A - Joint 4
-            4: 5,  # B - Joint 5
-            5: 6   # C - Joint 6
-        }
-        
-        return motor_mapping[self.motor_combo.currentIndex()]
-    
-    def _on_read_encoder(self):
-        """Handle encoder reading button click."""
+
+    def _on_read_encoder(self) -> None:
+        self.operation_requested.emit("read_encoder", {"motor_id": self.get_motor_id()})
+
+    def _on_read_speed(self) -> None:
+        self.operation_requested.emit("read_speed", {"motor_id": self.get_motor_id()})
+
+    def _on_read_io_status(self) -> None:
+        self.operation_requested.emit("read_io_status", {"motor_id": self.get_motor_id()})
+
+    def _on_read_motor_status(self) -> None:
+        self.operation_requested.emit(
+            "read_motor_status",
+            {"motor_id": self.get_motor_id()},
+        )
+
+    def _on_read_all(self) -> None:
         motor_id = self.get_motor_id()
-        self.operation_requested.emit('read_encoder', {'motor_id': motor_id})
-    
-    def _on_read_speed(self):
-        """Handle speed reading button click."""
-        motor_id = self.get_motor_id()
-        self.operation_requested.emit('read_speed', {'motor_id': motor_id})
-    
-    def _on_read_io_status(self):
-        """Handle I/O status reading button click."""
-        motor_id = self.get_motor_id()
-        self.operation_requested.emit('read_io_status', {'motor_id': motor_id})
-    
-    def _on_read_motor_status(self):
-        """Handle motor status reading button click."""
-        motor_id = self.get_motor_id()
-        self.operation_requested.emit('read_motor_status', {'motor_id': motor_id})
-    
-    def _on_read_all(self):
-        """Handle read all data button click."""
-        motor_id = self.get_motor_id()
-        # Clear displays first
         self.clear_displays()
-        
-        # Read all data types
-        self.operation_requested.emit('read_encoder', {'motor_id': motor_id})
-        self.operation_requested.emit('read_speed', {'motor_id': motor_id})
-        self.operation_requested.emit('read_io_status', {'motor_id': motor_id})
-        self.operation_requested.emit('read_motor_status', {'motor_id': motor_id})
-    
-    def update_encoder_display(self, data):
-        """Update encoder display with new data.
-        
-        Args:
-            data: Dictionary with encoder data
-        """
-        encoder_text = f"""<b style="color: #1976D2;">Encoder Data:</b><br>
+
+        self.operation_requested.emit("read_encoder", {"motor_id": motor_id})
+        self.operation_requested.emit("read_speed", {"motor_id": motor_id})
+        self.operation_requested.emit("read_io_status", {"motor_id": motor_id})
+        self.operation_requested.emit("read_motor_status", {"motor_id": motor_id})
+
+    def update_encoder_display(self, data: dict) -> None:
+        self.encoder_display.setHtml(
+            f"""<b style='color: {_ACCENT};'>Encoder</b><br>
 <b>Raw Value:</b> {data.get('encoder_raw_value', 0)}<br>
-<b>Angle (Degrees):</b> {data.get('encoder_angle_degrees', 0):.2f}°<br>
-<b>Angle (Radians):</b> {data.get('encoder_angle_radians', 0):.4f} rad"""
-        self.encoder_display.setHtml(encoder_text)
-    
-    def update_speed_display(self, data):
-        """Update speed display with new data.
-        
-        Args:
-            data: Dictionary with speed data
-        """
-        speed_text = f"""<b style="color: #1976D2;">Speed Data:</b><br>
-<b>Speed (RPM):</b> {data.get('speed_rpm', 0)}<br>
-<b>Speed (rad/s):</b> {data.get('speed_rad_per_sec', 0):.4f} rad/s"""
-        self.speed_display.setHtml(speed_text)
-    
-    def update_io_display(self, data):
-        """Update I/O display with new data.
-        
-        Args:
-            data: Dictionary with I/O data
-        """
-        io_text = f"""<b style="color: #1976D2;">IO Status:</b><br>
-<b>IN1 (Home/Left Limit):</b> <span style="color: {'green' if data.get('io_in1') else 'red'};">{'HIGH' if data.get('io_in1') else 'LOW'}</span><br>
-<b>IN2 (Right Limit):</b> <span style="color: {'green' if data.get('io_in2') else 'red'};">{'HIGH' if data.get('io_in2') else 'LOW'}</span><br>
-<b>OUT1 (Stall Detection):</b> <span style="color: {'green' if data.get('io_out1') else 'red'};">{'HIGH' if data.get('io_out1') else 'LOW'}</span><br>
-<b>OUT2:</b> <span style="color: {'green' if data.get('io_out2') else 'red'};">{'HIGH' if data.get('io_out2') else 'LOW'}</span><br>
-<b>Stall Detected:</b> <span style="color: {'red' if data.get('stall_detected') else 'green'};">{'YES' if data.get('stall_detected') else 'NO'}</span>"""
-        self.io_display.setHtml(io_text)
-    
-    def update_motor_status_display(self, data):
-        """Update motor status display with new data.
-        
-        Args:
-            data: Dictionary with motor status data
-        """
-        status_text = f"""<b style="color: #1976D2;">Motor Status:</b><br>
-<b>Enabled:</b> <span style="color: {'green' if data.get('motor_enabled') else 'red'};">{'YES' if data.get('motor_enabled') else 'NO'}</span><br>
-<b>Moving:</b> <span style="color: {'orange' if data.get('motor_moving') else 'green'};">{'YES' if data.get('motor_moving') else 'NO'}</span><br>
-<b>Calibrated:</b> <span style="color: {'green' if data.get('motor_calibrated') else 'red'};">{'YES' if data.get('motor_calibrated') else 'NO'}</span><br>
-<b>Error:</b> <span style="color: {'red' if data.get('motor_error') else 'green'};">{'YES' if data.get('motor_error') else 'NO'}</span><br>
+<b>Angle (deg):</b> {data.get('encoder_angle_degrees', 0):.2f}&deg;<br>
+<b>Angle (rad):</b> {data.get('encoder_angle_radians', 0):.4f} rad"""
+        )
+
+    def update_speed_display(self, data: dict) -> None:
+        self.speed_display.setHtml(
+            f"""<b style='color: {_ACCENT};'>Speed</b><br>
+<b>RPM:</b> {data.get('speed_rpm', 0)}<br>
+<b>rad/s:</b> {data.get('speed_rad_per_sec', 0):.4f} rad/s"""
+        )
+
+    def update_io_display(self, data: dict) -> None:
+        def _hl(value: bool) -> str:
+            color = _SUCCESS if value else _DANGER
+            return f"<span style='color: {color}; font-weight: 700;'>{'HIGH' if value else 'LOW'}</span>"
+
+        stall = bool(data.get("stall_detected"))
+        stall_color = _DANGER if stall else _SUCCESS
+        stall_text = "YES" if stall else "NO"
+
+        self.io_display.setHtml(
+            f"""<b style='color: {_ACCENT};'>I/O</b><br>
+<b>IN1 (Home/Left Limit):</b> {_hl(bool(data.get('io_in1')))}<br>
+<b>IN2 (Right Limit):</b> {_hl(bool(data.get('io_in2')))}<br>
+<b>OUT1 (Stall Detection):</b> {_hl(bool(data.get('io_out1')))}<br>
+<b>OUT2:</b> {_hl(bool(data.get('io_out2')))}<br>
+<b>Stall Detected:</b> <span style='color: {stall_color}; font-weight: 700;'>{stall_text}</span>"""
+        )
+
+    def update_motor_status_display(self, data: dict) -> None:
+        def _yes_no(value: bool, true_color: str, false_color: str) -> str:
+            return (
+                f"<span style='color: {true_color if value else false_color}; font-weight: 700;'>"
+                f"{'YES' if value else 'NO'}</span>"
+            )
+
+        enabled = bool(data.get("motor_enabled"))
+        moving = bool(data.get("motor_moving"))
+        calibrated = bool(data.get("motor_calibrated"))
+        error = bool(data.get("motor_error"))
+
+        self.motor_status_display.setHtml(
+            f"""<b style='color: {_ACCENT};'>Motor Status</b><br>
+<b>Enabled:</b> {_yes_no(enabled, _SUCCESS, _DANGER)}<br>
+<b>Moving:</b> {_yes_no(moving, _WARNING, _SUCCESS)}<br>
+<b>Calibrated:</b> {_yes_no(calibrated, _SUCCESS, _DANGER)}<br>
+<b>Error:</b> {_yes_no(error, _DANGER, _SUCCESS)}<br>
 <b>Status Code:</b> {data.get('motor_status_code', 0)}<br>
 <b>Status:</b> {data.get('motor_status_text', 'Unknown')}"""
-        self.motor_status_display.setHtml(status_text)
+        )

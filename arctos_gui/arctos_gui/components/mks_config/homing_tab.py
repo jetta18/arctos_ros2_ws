@@ -1,154 +1,126 @@
 """Homing configuration tab for MKS servo motors."""
 
+from __future__ import annotations
+
+from typing import Optional
+
+from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel, 
-    QPushButton, QSpinBox, QComboBox, QCheckBox, QFormLayout, QMessageBox
+    QCheckBox,
+    QComboBox,
+    QFormLayout,
+    QGroupBox,
+    QLabel,
+    QMessageBox,
+    QVBoxLayout,
+    QWidget,
 )
-from PyQt5.QtCore import Qt, pyqtSignal
+
+from ...ui.theme import set_role
+from ...ui.widgets import action_button
+from ...ui.widgets import action_button_row
+from ...ui.widgets import connect as qt_connect
+from ...ui.widgets import field_label
+from ...ui.widgets import int_spinbox
 
 
 class HomingTab(QWidget):
-    """Homing tab for MKS motor configuration.
-    
-    Provides controls for homing parameters and homing operations.
-    """
-    
-    operation_requested = pyqtSignal(str, dict)  # operation_name, parameters
-    
-    def __init__(self, parent=None):
-        """Initialize the homing tab.
-        
-        Args:
-            parent: Parent widget
-        """
+    """Configure and run homing operations."""
+
+    operation_requested = pyqtSignal(str, dict)
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
-        self.init_ui()
-    
-    def init_ui(self):
-        """Initialize the user interface."""
-        layout = QVBoxLayout()
-        layout.setSpacing(10)
+        self._init_ui()
+
+    def _init_ui(self) -> None:
+        layout = QVBoxLayout(self)
+        layout.setSpacing(12)
         layout.setContentsMargins(10, 10, 10, 10)
-        
-        # Homing Parameters Group
-        home_params_group = QGroupBox("Homing Parameters")
-        home_params_layout = QFormLayout()
-        home_params_layout.setSpacing(10)
-        home_params_layout.setLabelAlignment(Qt.AlignRight)
-        
+
+        layout.addWidget(self._build_params_group())
+        layout.addWidget(self._build_ops_group())
+        layout.addStretch(1)
+
+    def _build_params_group(self) -> QGroupBox:
+        group = QGroupBox("Homing Parameters")
+        form = QFormLayout(group)
+        form.setSpacing(10)
+        form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
+
         self.home_trigger_combo = QComboBox()
         self.home_trigger_combo.addItems(["0 - Low Level", "1 - High Level"])
-        home_params_layout.addRow("Trigger Level:", self.home_trigger_combo)
-        
+        form.addRow(field_label("Trigger Level:"), self.home_trigger_combo)
+
         self.home_direction_combo = QComboBox()
         self.home_direction_combo.addItems(["0 - Clockwise", "1 - Counter-Clockwise"])
-        home_params_layout.addRow("Direction:", self.home_direction_combo)
-        
-        self.home_speed_spin = QSpinBox()
-        self.home_speed_spin.setRange(1, 1000)
-        self.home_speed_spin.setValue(100)
-        self.home_speed_spin.setSuffix(" RPM")
-        home_params_layout.addRow("Homing Speed:", self.home_speed_spin)
-        
+        form.addRow(field_label("Direction:"), self.home_direction_combo)
+
+        self.home_speed_spin = int_spinbox(
+            min_value=1,
+            max_value=1000,
+            value=100,
+            suffix=" RPM",
+        )
+        form.addRow(field_label("Homing Speed:"), self.home_speed_spin)
+
         self.home_enable_limit_check = QCheckBox("Enable Limit Switch")
         self.home_enable_limit_check.setChecked(True)
-        home_params_layout.addRow("", self.home_enable_limit_check)
-        
-        set_params_btn = QPushButton("Set Homing Parameters")
-        set_params_btn.clicked.connect(self._on_set_home_params)
-        home_params_layout.addRow("", set_params_btn)
-        home_params_group.setLayout(home_params_layout)
-        layout.addWidget(home_params_group)
-        
-        # Homing Operations Group
-        home_ops_group = QGroupBox("Homing Operations")
-        home_ops_layout = QVBoxLayout()
-        home_ops_layout.setSpacing(15)
-        
-        # Homing buttons in horizontal layout
-        home_buttons_layout = QHBoxLayout()
-        
-        self.home_btn = QPushButton("Start Homing")
-        self.home_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #2196F3;
-                color: white;
-                font-weight: bold;
-                padding: 12px;
-                border-radius: 4px;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #1976D2;
-            }
-        """)
-        self.home_btn.clicked.connect(self._on_go_home)
-        home_buttons_layout.addWidget(self.home_btn)
-        
-        self.set_zero_btn = QPushButton("Set Current Position as Zero")
-        self.set_zero_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #FF9800;
-                color: white;
-                font-weight: bold;
-                padding: 12px;
-                border-radius: 4px;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #F57C00;
-            }
-        """)
-        self.set_zero_btn.clicked.connect(self._on_set_zero)
-        home_buttons_layout.addWidget(self.set_zero_btn)
-        
-        home_ops_layout.addLayout(home_buttons_layout)
-        
-        # Info label
-        home_info = QLabel(
+        form.addRow(QLabel(""), self.home_enable_limit_check)
+
+        set_params_btn = action_button("Set Homing Parameters", variant="primary")
+        qt_connect(set_params_btn.clicked, self._on_set_home_params)
+        form.addRow(QLabel(""), set_params_btn)
+
+        return group
+
+    def _build_ops_group(self) -> QGroupBox:
+        group = QGroupBox("Homing Operations")
+        v = QVBoxLayout(group)
+        v.setSpacing(10)
+
+        self.home_btn = action_button("Start Homing", variant="primary")
+        qt_connect(self.home_btn.clicked, self._on_go_home)
+
+        self.set_zero_btn = action_button("Set Current Position as Zero", variant="warning")
+        qt_connect(self.set_zero_btn.clicked, self._on_set_zero)
+
+        v.addWidget(action_button_row(self.home_btn, self.set_zero_btn))
+
+        info = QLabel(
             "• Start Homing: Moves the motor to the home/limit switch\n"
             "• Set Zero: Marks the current position as zero reference"
         )
-        home_info.setStyleSheet("color: #666; font-size: 12px; margin-top: 10px;")
-        home_ops_layout.addWidget(home_info)
-        
-        home_ops_group.setLayout(home_ops_layout)
-        layout.addWidget(home_ops_group)
-        
-        layout.addStretch()
-        self.setLayout(layout)
-    
-    def _on_set_home_params(self):
-        """Handle homing parameters setting button click."""
-        trigger = self.home_trigger_combo.currentIndex()
-        direction = self.home_direction_combo.currentIndex()
-        speed = self.home_speed_spin.value()
-        enable_limit = self.home_enable_limit_check.isChecked()
-        
+        set_role(info, "muted")
+        v.addWidget(info)
+
+        return group
+
+    def _on_set_home_params(self) -> None:
         params = {
-            'trigger': trigger,
-            'direction': direction,
-            'speed': speed,
-            'enable_limit': enable_limit
+            "trigger": self.home_trigger_combo.currentIndex(),
+            "direction": self.home_direction_combo.currentIndex(),
+            "speed": int(self.home_speed_spin.value()),
+            "enable_limit": bool(self.home_enable_limit_check.isChecked()),
         }
-        self.operation_requested.emit('set_home_params', params)
-    
-    def _on_go_home(self):
-        """Handle homing sequence start button click."""
+        self.operation_requested.emit("set_home_params", params)
+
+    def _on_go_home(self) -> None:
         reply = QMessageBox.question(
-            self, 'Confirm Homing',
-            'Start the homing sequence?\nThe motor will move to find the home position.',
-            QMessageBox.Yes | QMessageBox.No
+            self,
+            "Confirm Homing",
+            "Start the homing sequence?\nThe motor will move to find the home position.",
+            QMessageBox.Yes | QMessageBox.No,
         )
         if reply == QMessageBox.Yes:
-            self.operation_requested.emit('go_home', {})
-    
-    def _on_set_zero(self):
-        """Handle zero position setting button click."""
+            self.operation_requested.emit("go_home", {})
+
+    def _on_set_zero(self) -> None:
         reply = QMessageBox.question(
-            self, 'Confirm Zero Position',
-            'Set the current position as zero reference?',
-            QMessageBox.Yes | QMessageBox.No
+            self,
+            "Confirm Zero Position",
+            "Set the current position as zero reference?",
+            QMessageBox.Yes | QMessageBox.No,
         )
         if reply == QMessageBox.Yes:
-            self.operation_requested.emit('set_zero', {})
+            self.operation_requested.emit("set_zero", {})

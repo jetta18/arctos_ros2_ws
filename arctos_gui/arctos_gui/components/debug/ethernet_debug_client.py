@@ -1,9 +1,12 @@
 """Ethernet client for STM32 debug messages."""
 
+import logging
 import socket
 import struct
 import threading
 from typing import Callable, Optional
+
+_LOGGER = logging.getLogger(__name__)
 
 
 # Protocol constants
@@ -74,10 +77,10 @@ class EthernetDebugClient:
                 self._reconnect_thread = threading.Thread(target=self._reconnection_monitor, daemon=True)
                 self._reconnect_thread.start()
             
-            print(f"Successfully connected to {self.host}:{self.port}")
+            _LOGGER.info("Connected to %s:%s", self.host, self.port)
             return True
         except Exception as e:
-            print(f"Failed to connect: {e}")
+            _LOGGER.warning("Failed to connect to %s:%s: %s", self.host, self.port, e)
             self._cleanup_connection()
             return False
             
@@ -126,7 +129,7 @@ class EthernetDebugClient:
                 
             return bytes([response]) + payload_data
         except Exception as e:
-            print(f"Send command failed: {e}")
+            _LOGGER.debug("Send command failed: %s", e)
             with self._connection_lock:
                 self._cleanup_connection()
             return None
@@ -154,7 +157,7 @@ class EthernetDebugClient:
                 time.sleep(0.1)  # Update at 10 Hz
                 
             except Exception as e:
-                print(f"Monitor loop error: {e}")
+                _LOGGER.debug("Monitor loop error: %s", e)
                 with self._connection_lock:
                     self._cleanup_connection()
                 break
@@ -164,7 +167,7 @@ class EthernetDebugClient:
         if self._socket:
             try:
                 self._socket.close()
-            except:
+            except Exception:
                 pass
             self._socket = None
         self._connected = False
@@ -185,20 +188,20 @@ class EthernetDebugClient:
                     # Simple health check - try to get state
                     response = self._send_command(CMD_GET_STATE)
                     if response is None:
-                        print("Connection lost, attempting reconnection...")
+                        _LOGGER.info("Connection lost, attempting reconnection")
                         with self._connection_lock:
                             self._cleanup_connection()
-                except:
+                except Exception:
                     with self._connection_lock:
                         self._cleanup_connection()
             
             # Attempt reconnection if disconnected
             if not self._connected and not self._stop_event.is_set():
-                print("Attempting to reconnect...")
+                _LOGGER.info("Attempting to reconnect")
                 if self._connect_internal():
-                    print("Reconnection successful")
+                    _LOGGER.info("Reconnection successful")
                 else:
-                    print("Reconnection failed, will retry in 1 second")
+                    _LOGGER.info("Reconnection failed; retrying")
                     
     def __del__(self):
         """Cleanup when object is destroyed."""

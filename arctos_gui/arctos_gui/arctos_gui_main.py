@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import QApplication
 
 from .components.jog.ros_jog_client import ArctosRosJogClient
 from .main import ArctosMainWindow
+from .ui import apply_app_theme
 
 
 def main() -> None:
@@ -21,6 +22,7 @@ def main() -> None:
 
     # Create Qt application
     app = QApplication(sys.argv)
+    apply_app_theme(app)
     window = ArctosMainWindow(jog_client=jog_client)
     window.show()
 
