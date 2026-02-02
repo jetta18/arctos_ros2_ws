@@ -9,13 +9,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable, Optional, Sequence
 
+from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QResizeEvent
 from PyQt5.QtWidgets import (
     QAbstractSpinBox,
+    QComboBox,
     QDoubleSpinBox,
     QGridLayout,
     QLabel,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     QSpinBox,
     QWidget,
@@ -24,8 +27,33 @@ from PyQt5.QtWidgets import (
 from .theme import set_role, set_variant
 
 
-_ACTION_MIN_HEIGHT_PX = 38
-_ACTION_MIN_WIDTH_PX = 220
+_ACTION_MIN_HEIGHT_PX = 28
+
+
+class _NoWheelMixin:
+    def wheelEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        if not self.hasFocus():
+            event.ignore()
+            return
+        super().wheelEvent(event)
+
+
+class NoWheelComboBox(_NoWheelMixin, QComboBox):
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setFocusPolicy(Qt.StrongFocus)
+
+
+class NoWheelSpinBox(_NoWheelMixin, QSpinBox):
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setFocusPolicy(Qt.StrongFocus)
+
+
+class NoWheelDoubleSpinBox(_NoWheelMixin, QDoubleSpinBox):
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setFocusPolicy(Qt.StrongFocus)
 
 
 def connect(signal: Any, slot: Callable[..., object]) -> None:
@@ -56,9 +84,26 @@ def action_button(text: str, variant: Optional[str] = None) -> QPushButton:
     set_role(button, "action")
     set_variant(button, variant)
     button.setMinimumHeight(_ACTION_MIN_HEIGHT_PX)
-    button.setMinimumWidth(_ACTION_MIN_WIDTH_PX)
+    button.setMinimumWidth(0)
     button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
     return button
+
+
+def combo_box(*, items: Optional[Sequence[str]] = None) -> QComboBox:
+    box = NoWheelComboBox()
+    if items:
+        box.addItems(list(items))
+    box.setFocusPolicy(Qt.StrongFocus)
+    box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+    return box
+
+
+def scroll_container(content: QWidget) -> QScrollArea:
+    area = QScrollArea()
+    area.setWidgetResizable(True)
+    area.setFrameShape(QScrollArea.NoFrame)
+    area.setWidget(content)
+    return area
 
 
 def double_spinbox(
@@ -72,7 +117,7 @@ def double_spinbox(
 ) -> QDoubleSpinBox:
     """Create a consistently configured `QDoubleSpinBox`."""
 
-    box = QDoubleSpinBox()
+    box = NoWheelDoubleSpinBox()
     box.setDecimals(decimals)
     box.setRange(min_value, max_value)
     box.setSingleStep(step)
@@ -96,7 +141,7 @@ def int_spinbox(
 ) -> QSpinBox:
     """Create a consistently configured `QSpinBox`."""
 
-    box = QSpinBox()
+    box = NoWheelSpinBox()
     box.setRange(min_value, max_value)
     box.setSingleStep(step)
     box.setValue(value)
@@ -185,7 +230,7 @@ class WrapGrid(QWidget):
         return min(cols, max(1, len(self._widgets)))
 
 
-def action_button_row(*buttons: QPushButton, min_cell_width_px: int = 320) -> WrapGrid:
+def action_button_row(*buttons: QPushButton, min_cell_width_px: int = 60) -> WrapGrid:
     """Create a wrapping row/ grid for action buttons."""
 
     return WrapGrid(

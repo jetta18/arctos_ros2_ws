@@ -42,7 +42,6 @@ class AdvancedConfigTab(QWidget):
 
         layout.addWidget(self._build_limit_group())
         layout.addWidget(self._build_restore_group())
-        layout.addStretch(1)
 
     def _build_limit_group(self) -> QGroupBox:
         group = QGroupBox("Limit Switch Configuration")

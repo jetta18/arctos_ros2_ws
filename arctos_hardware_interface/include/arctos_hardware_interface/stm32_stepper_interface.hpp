@@ -4,9 +4,7 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include <thread>
-#include <mutex>
-#include <chrono>
+#include <atomic>
 
 #include "hardware_interface/system_interface.hpp"
 #include "hardware_interface/handle.hpp"
@@ -14,6 +12,10 @@
 #include "hardware_interface/types/hardware_interface_return_values.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/state.hpp"
+
+#include "arctos_hardware_interface/utils/unit_conversion.hpp"
+#include "arctos_hardware_interface/utils/stm32_protocol.hpp"
+#include "arctos_hardware_interface/utils/socket_manager.hpp"
 
 namespace arctos_hardware_interface
 {
@@ -43,6 +45,15 @@ public:
   hardware_interface::CallbackReturn on_configure(
     const rclcpp_lifecycle::State & previous_state) override;
 
+  hardware_interface::CallbackReturn on_cleanup(
+    const rclcpp_lifecycle::State & previous_state) override;
+
+  hardware_interface::CallbackReturn on_shutdown(
+    const rclcpp_lifecycle::State & previous_state) override;
+
+  hardware_interface::CallbackReturn on_error(
+    const rclcpp_lifecycle::State & previous_state) override;
+
   std::vector<hardware_interface::StateInterface> export_state_interfaces() override;
 
   std::vector<hardware_interface::CommandInterface> export_command_interfaces() override;
@@ -61,32 +72,18 @@ public:
     const rclcpp::Time & time, const rclcpp::Duration & period) override;
 
 private:
-  // UDP communication
-  bool connect_to_stm32();
-  void disconnect_from_stm32();
-  bool send_jtc_command(const std::vector<double>& positions, 
-                        const std::vector<double>& velocities);
-  bool read_state();
-  void attempt_reconnection();
-  bool ping_stm32();
+  void perform_lifecycle_cleanup();
+  void log_throttled(const std::string& message, 
+                     std::chrono::steady_clock::time_point& last_log_time);
 
-  // Unit conversion
-  double rad_to_steps(double radians, size_t joint_index) const;
-  double steps_to_rad(double steps, size_t joint_index) const;
-  double rad_per_sec_to_steps_per_sec(double rad_per_sec, size_t joint_index) const;
-  double steps_per_sec_to_rad_per_sec(double steps_per_sec, size_t joint_index) const;
-
-  // Configuration
-  std::string stm32_host_;
-  int stm32_port_;
-  int socket_fd_;
-  bool connected_;
-  std::mutex connection_mutex_;
+  // Utility components
+  std::unique_ptr<utils::UnitConverter> unit_converter_;
+  std::unique_ptr<utils::STM32Protocol> protocol_;
+  std::unique_ptr<utils::STM32SocketManager> socket_manager_;
   
   // Reconnection control
   bool reconnect_enabled_;
-  std::chrono::steady_clock::time_point last_reconnect_attempt_;
-  static constexpr std::chrono::milliseconds RECONNECT_INTERVAL{5000};  // 5 seconds
+  std::atomic_bool shutdown_requested_;
 
   // Joint data (in radians and rad/s)
   std::vector<double> hw_commands_positions_;
@@ -96,22 +93,13 @@ private:
 
   // Motor configuration
   std::vector<double> gear_ratios_;
-  std::vector<double> steps_per_revolution_;  // Per joint (after gear ratio)
-  std::vector<bool> joint_inversions_;         // Per joint inversion flags
+  std::vector<double> steps_per_revolution_;
+  std::vector<bool> joint_inversions_;
   static constexpr int STEPS_PER_REV = 200;
   static constexpr int MICROSTEPS = 16;
 
-  // Protocol constants
-  static constexpr uint8_t PROTOCOL_VERSION = 1;
-  static constexpr uint8_t CMD_JTC_STREAM = 0x01;
-  static constexpr uint8_t CMD_PING = 0x20;
-  static constexpr uint8_t CMD_GET_STATE = 0x10;
-  static constexpr uint8_t RESP_OK = 0x00;
-  static constexpr uint8_t RESP_STATE = 0x02;
-
-  // Handshake configuration
-  static constexpr int PING_MAX_ATTEMPTS = 5;
-  static constexpr std::chrono::milliseconds PING_RETRY_DELAY{200};
+  // Logging throttle
+  static constexpr int LOG_THROTTLE_MS = 1000;
 
   // Sequence tracking
   uint32_t sequence_number_;

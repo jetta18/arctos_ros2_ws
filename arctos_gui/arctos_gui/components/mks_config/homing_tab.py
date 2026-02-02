@@ -7,7 +7,6 @@ from typing import Optional
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QFormLayout,
     QGroupBox,
     QLabel,
@@ -19,6 +18,7 @@ from PyQt5.QtWidgets import (
 from ...ui.theme import set_role
 from ...ui.widgets import action_button
 from ...ui.widgets import action_button_row
+from ...ui.widgets import combo_box
 from ...ui.widgets import connect as qt_connect
 from ...ui.widgets import field_label
 from ...ui.widgets import int_spinbox
@@ -40,7 +40,6 @@ class HomingTab(QWidget):
 
         layout.addWidget(self._build_params_group())
         layout.addWidget(self._build_ops_group())
-        layout.addStretch(1)
 
     def _build_params_group(self) -> QGroupBox:
         group = QGroupBox("Homing Parameters")
@@ -48,12 +47,12 @@ class HomingTab(QWidget):
         form.setSpacing(10)
         form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
 
-        self.home_trigger_combo = QComboBox()
-        self.home_trigger_combo.addItems(["0 - Low Level", "1 - High Level"])
+        self.home_trigger_combo = combo_box(items=["0 - Low Level", "1 - High Level"])
         form.addRow(field_label("Trigger Level:"), self.home_trigger_combo)
 
-        self.home_direction_combo = QComboBox()
-        self.home_direction_combo.addItems(["0 - Clockwise", "1 - Counter-Clockwise"])
+        self.home_direction_combo = combo_box(
+            items=["0 - Clockwise", "1 - Counter-Clockwise"]
+        )
         form.addRow(field_label("Direction:"), self.home_direction_combo)
 
         self.home_speed_spin = int_spinbox(

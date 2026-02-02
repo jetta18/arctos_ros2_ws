@@ -16,6 +16,9 @@ find_package(rclcpp_lifecycle REQUIRED)
 # Add library for STM32 Stepper hardware interface
 add_library(arctos_stm32_stepper_interface SHARED
   src/stm32_stepper_interface.cpp
+  src/utils/unit_conversion.cpp
+  src/utils/stm32_protocol.cpp
+  src/utils/socket_manager.cpp
 )
 
 # Link libraries and dependencies

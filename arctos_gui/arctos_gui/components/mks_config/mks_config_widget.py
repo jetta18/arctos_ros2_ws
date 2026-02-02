@@ -19,10 +19,12 @@ from PyQt5.QtWidgets import (
     QTextEdit,
     QVBoxLayout,
     QWidget,
+    QStyle,
 )
 
 from ...ui.theme import set_role, set_status, set_variant
 from ...ui.widgets import action_button
+from ...ui.widgets import scroll_container
 
 from .mks_can_direct import MKSCanDirect
 from .base_config_tab import BaseConfigTab
@@ -183,7 +185,12 @@ class MKSConfigWidget(QWidget):
     
     def init_ui(self) -> None:
         """Initialize the user interface layout and components."""
-        main_layout = QVBoxLayout(self)
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setSpacing(12)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+
+        content = QWidget()
+        main_layout = QVBoxLayout(content)
         main_layout.setSpacing(12)
         main_layout.setContentsMargins(0, 0, 0, 0)
         
@@ -194,15 +201,35 @@ class MKSConfigWidget(QWidget):
         # Tab widget
         self.tab_widget = QTabWidget()
         self.tab_widget.setObjectName("subTabs")
+        self.tab_widget.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        _connect(self.tab_widget.currentChanged, self._sync_tab_height)
         
         # Create tabs
         self._create_tabs()
+
+        self._sync_tab_height()
         
         main_layout.addWidget(self.tab_widget)
         
         # Status log
         log_group = self._create_status_log()
         main_layout.addWidget(log_group)
+
+        outer_layout.addWidget(scroll_container(content))
+
+
+    def _sync_tab_height(self) -> None:
+        current = self.tab_widget.currentWidget() if hasattr(self, "tab_widget") else None
+        if current is None:
+            return
+
+        content_h = int(current.sizeHint().height())
+        bar_h = int(self.tab_widget.tabBar().sizeHint().height())
+        margins = self.tab_widget.contentsMargins()
+        frame = int(self.tab_widget.style().pixelMetric(QStyle.PM_DefaultFrameWidth)) * 2
+
+        total = content_h + bar_h + int(margins.top() + margins.bottom()) + frame
+        self.tab_widget.setFixedHeight(max(1, int(total)))
 
     
     def _create_header(self) -> QHBoxLayout:
@@ -241,8 +268,7 @@ class MKSConfigWidget(QWidget):
         status_layout.addStretch(1)
         
         self._connect_button = action_button("Connect", variant="primary")
-        self._connect_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
-        self._connect_button.setMinimumWidth(140)
+        self._connect_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         _connect(self._connect_button.clicked, self._toggle_connection)
         status_layout.addWidget(self._connect_button)
 
@@ -424,15 +450,20 @@ class MKSConfigWidget(QWidget):
         """
         return datetime.now().strftime("%H:%M:%S")
 
-    def closeEvent(self, a0: QCloseEvent) -> None:  # noqa: N802 (Qt override)
-        """Clean up resources when widget is closed."""
-        # Stop worker thread
-        if self.worker_thread.isRunning():
-            self.worker_thread.quit()
-            self.worker_thread.wait(1000)
-        
-        # Disconnect CAN
+    def shutdown(self) -> None:
+        if hasattr(self, "update_timer") and self.update_timer.isActive():
+            self.update_timer.stop()
+
         if self.can_client:
             self.can_client.disconnect()
+
+        if self.worker_thread.isRunning():
+            self.worker_thread.requestInterruption()
+            self.worker_thread.quit()
+            self.worker_thread.wait(1000)
+
+    def closeEvent(self, a0: QCloseEvent) -> None:  # noqa: N802 (Qt override)
+        """Clean up resources when widget is closed."""
+        self.shutdown()
         
         super().closeEvent(a0)

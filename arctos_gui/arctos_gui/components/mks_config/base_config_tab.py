@@ -6,7 +6,6 @@ from typing import Optional
 
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import (
-    QComboBox,
     QFormLayout,
     QGroupBox,
     QLabel,
@@ -15,6 +14,7 @@ from PyQt5.QtWidgets import (
 )
 
 from ...ui.widgets import action_button
+from ...ui.widgets import combo_box
 from ...ui.widgets import connect as qt_connect
 from ...ui.widgets import field_label
 from ...ui.widgets import int_spinbox
@@ -41,16 +41,14 @@ class BaseConfigTab(QWidget):
         layout.addWidget(self._build_work_mode_group())
         layout.addWidget(self._build_current_group())
         layout.addWidget(self._build_microstep_group())
-        layout.addStretch(1)
 
     def _build_work_mode_group(self) -> QGroupBox:
         group = QGroupBox("Work Mode")
         form = QFormLayout(group)
         form.setSpacing(10)
         form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
-        self.work_mode_combo = QComboBox()
-        self.work_mode_combo.addItems(
-            [
+        self.work_mode_combo = combo_box(
+            items=[
                 "0 - CR Open (Open Loop)",
                 "1 - CR Close (Closed Loop)",
                 "2 - CR_vFOC (Closed Loop FOC)",
@@ -105,9 +103,8 @@ class BaseConfigTab(QWidget):
         form = QFormLayout(group)
         form.setSpacing(10)
         form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
-        self.subdivision_combo = QComboBox()
-        self.subdivision_combo.addItems(
-            [
+        self.subdivision_combo = combo_box(
+            items=[
                 "0 - Full Step",
                 "1 - 2 Microsteps",
                 "2 - 4 Microsteps",

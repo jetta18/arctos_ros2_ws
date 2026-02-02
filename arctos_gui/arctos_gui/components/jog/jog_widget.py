@@ -20,6 +20,7 @@ from PyQt5.QtWidgets import (
     QListView,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -27,6 +28,7 @@ from PyQt5.QtWidgets import (
 
 from ...ui.theme import set_role, set_status, set_variant
 from ...ui.widgets import action_button
+from ...ui.widgets import combo_box
 from ...ui.widgets import connect as qt_connect
 from ...ui.widgets import double_spinbox
 from ...ui.widgets import field_label
@@ -48,6 +50,7 @@ class JogWidget(QWidget):
 
         self._build_ui()
         self._setup_status_timer()
+        self._setup_state_timer()
 
         self._log_message("System", "Jog widget initialized")
         self._update_status()
@@ -130,9 +133,13 @@ class JogWidget(QWidget):
         layout.setVerticalSpacing(10)
 
         axis_label = field_label("Axis")
-        self._axis_combo = QComboBox()
-        self._axis_combo.addItems(self.AXIS_LABELS)
+        self._axis_combo = combo_box(items=self.AXIS_LABELS)
         self._axis_combo.setView(QListView())
+        qt_connect(self._axis_combo.currentIndexChanged, self._update_axis_state)
+
+        current_label = field_label("Current [rad]")
+        self._current_position = QLabel("-")
+        self._current_position.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
 
         delta_label = field_label("Delta [rad]")
         self._delta_spin = double_spinbox(
@@ -154,10 +161,12 @@ class JogWidget(QWidget):
 
         layout.addWidget(axis_label, 0, 0)
         layout.addWidget(self._axis_combo, 0, 1)
-        layout.addWidget(delta_label, 1, 0)
-        layout.addWidget(self._delta_spin, 1, 1)
-        layout.addWidget(vel_label, 2, 0)
-        layout.addWidget(self._velocity_spin, 2, 1)
+        layout.addWidget(current_label, 1, 0)
+        layout.addWidget(self._current_position, 1, 1)
+        layout.addWidget(delta_label, 2, 0)
+        layout.addWidget(self._delta_spin, 2, 1)
+        layout.addWidget(vel_label, 3, 0)
+        layout.addWidget(self._velocity_spin, 3, 1)
 
         button_row = QHBoxLayout()
         button_row.setSpacing(12)
@@ -175,7 +184,7 @@ class JogWidget(QWidget):
         button_row.addWidget(self._btn_plus)
         button_row.addStretch(1)
 
-        layout.addLayout(button_row, 3, 0, 1, 2)
+        layout.addLayout(button_row, 4, 0, 1, 2)
         return group
 
     def _build_log_group(self) -> QGroupBox:
@@ -204,6 +213,11 @@ class JogWidget(QWidget):
         qt_connect(self._status_timer.timeout, self._update_status)
         self._status_timer.start(1000)
 
+    def _setup_state_timer(self) -> None:
+        self._state_timer = QTimer()
+        qt_connect(self._state_timer.timeout, self._update_axis_state)
+        self._state_timer.start(200)
+
     def _update_status(self) -> None:
         is_connected = bool(self._client and self._client.is_connected())
         if is_connected != self._connected:
@@ -212,6 +226,8 @@ class JogWidget(QWidget):
                 self._log_message("Connection", "Connected")
             else:
                 self._log_message("Connection", "Disconnected")
+
+            self._update_axis_state()
 
         if is_connected:
             self._last_update.setText(
@@ -291,6 +307,24 @@ class JogWidget(QWidget):
             self._log_message(f"Jog {axis_name}", "Command sent")
         except Exception as exc:  # noqa: BLE001
             self._log_message("Error", f"Jog failed: {exc}")
+
+        self._update_axis_state()
+
+    def _update_axis_state(self) -> None:
+        if not self._connected:
+            if self._current_position.text() != "-":
+                self._current_position.setText("-")
+            return
+
+        axis_index = self._current_axis_index()
+        try:
+            pos = float(self._client.get_current_position(axis_index))
+        except Exception:  # noqa: BLE001
+            if self._current_position.text() != "-":
+                self._current_position.setText("-")
+            return
+
+        self._current_position.setText(f"{pos:.4f}")
 
     def _toggle_connection(self) -> None:
         if self._connected:

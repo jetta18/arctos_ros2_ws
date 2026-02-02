@@ -6,7 +6,6 @@ from typing import Optional
 
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import (
-    QComboBox,
     QFormLayout,
     QGroupBox,
     QLabel,
@@ -18,6 +17,7 @@ from PyQt5.QtWidgets import (
 from ...ui.theme import set_role
 from ...ui.widgets import action_button
 from ...ui.widgets import action_button_row
+from ...ui.widgets import combo_box
 from ...ui.widgets import connect as qt_connect
 from ...ui.widgets import field_label
 
@@ -56,7 +56,6 @@ class DataReadTab(QWidget):
         layout.addWidget(self._build_motor_selection_group())
         layout.addWidget(self._build_read_controls_group())
         layout.addWidget(self._build_display_group())
-        layout.addStretch(1)
 
     def _build_motor_selection_group(self) -> QGroupBox:
         group = QGroupBox("Motor Selection")
@@ -64,8 +63,7 @@ class DataReadTab(QWidget):
         form.setSpacing(10)
         form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
 
-        self.motor_combo = QComboBox()
-        self.motor_combo.addItems(_MOTOR_OPTIONS)
+        self.motor_combo = combo_box(items=_MOTOR_OPTIONS)
         qt_connect(self.motor_combo.currentIndexChanged, self._on_motor_changed)
         form.addRow(field_label("Select Motor:"), self.motor_combo)
 

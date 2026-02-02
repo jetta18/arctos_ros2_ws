@@ -9,6 +9,9 @@ class JogClient(Protocol):
     Keeps the Qt layer independent from ROS specifics.
     """
 
+    def get_current_position(self, axis_index: int) -> float:
+        ...
+
     def send_jog(self, axis_index: int, delta_rad: float, velocity_rad_s: float) -> None:
         ...
 

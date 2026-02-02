@@ -1,7 +1,8 @@
 from launch import LaunchDescription
-from launch.actions import RegisterEventHandler, DeclareLaunchArgument, TimerAction
+from launch.actions import RegisterEventHandler, DeclareLaunchArgument, TimerAction, EmitEvent
 from launch.event_handlers import OnProcessExit
 from launch.actions import IncludeLaunchDescription, LogInfo
+from launch.events import Shutdown
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command, FindExecutable
 from ament_index_python.packages import get_package_share_directory
@@ -109,6 +110,16 @@ def generate_launch_description():
             target_action=robot_controller_spawner,
             on_exit=[moveit_rviz_launch, move_group_launch]
         ))
+
+    shutdown_on_control_exit = RegisterEventHandler(
+        OnProcessExit(
+            target_action=control_node,
+            on_exit=[
+                LogInfo(msg=["ros2_control_node exited. Shutting down launch..."]),
+                EmitEvent(event=Shutdown(reason="ros2_control_node exited")),
+            ],
+        )
+    )
     
     return LaunchDescription([
         LogInfo(msg=["Launching Arctos Robot System..."]),
@@ -118,6 +129,8 @@ def generate_launch_description():
         
         # Hardware interface and controller manager (direct CAN access)
         control_node,
+
+        shutdown_on_control_exit,
         
         # Controllers (delayed and sequenced)
         delayed_joint_state_broadcaster,

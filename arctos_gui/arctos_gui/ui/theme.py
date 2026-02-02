@@ -93,7 +93,7 @@ QLabel[role="fieldLabel"] {{
 }}
 
 QPushButton[role="action"] {{
-  min-height: 38px;
+  min-height: 28px;
 }}
 
 QLabel[role="title"] {{
@@ -284,7 +284,7 @@ QPushButton {{
   color: {_TEXT};
   border: 1px solid {_BORDER};
   border-radius: 8px;
-  padding: 8px 14px;
+  padding: 4px 8px;
   font-weight: 600;
 }}
 

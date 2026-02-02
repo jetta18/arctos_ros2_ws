@@ -16,16 +16,25 @@ joint_limits:
   # Wrist joints (NEMA17, Gear Ratio 36:1, 18,335 steps/rad)
   # Resonance zone: ~30,000-50,000 steps/s - stay below with safety margin
   A_joint:
+    has_position_limits: true
+    min_position: -1.40                # -80 degrees = -80° * π/180 ≈ -1.40 rad
+    max_position: 1.40                 # +80 degrees = +80° * π/180 ≈ +1.40 rad
     has_velocity_limits: true
     max_velocity: 1.57                 # 1.57 rad/s = 28,800 steps/s (below resonance)
     has_acceleration_limits: true
     max_acceleration: 4.71             # 4.71 rad/s² = 86,400 steps/s²
   B_joint:
+    has_position_limits: true
+    min_position: -1.40                # -80 degrees = -80° * π/180 ≈ -1.40 rad
+    max_position: 1.40                 # +80 degrees = +80° * π/180 ≈ +1.40 rad
     has_velocity_limits: true
     max_velocity: 1.57                 # 1.57 rad/s = 28,800 steps/s (below resonance)
     has_acceleration_limits: true
     max_acceleration: 4.71             # 4.71 rad/s²
   C_joint:
+    has_position_limits: true
+    min_position: -3.14                # -180 degrees = -π rad
+    max_position: 3.14                 # +180 degrees = +π rad
     has_velocity_limits: true
     max_velocity: 2.36                 # 2.36 rad/s = 43,200 steps/s (tool rotation, slightly faster)
     has_acceleration_limits: true
@@ -46,6 +55,9 @@ joint_limits:
   # Base joint (NEMA23, Gear Ratio 13.5:1, 6,875 steps/rad)
   # Resonance zone: ~20,000-40,000 steps/s - stay below
   X_joint:
+    has_position_limits: true
+    min_position: -3.14                # -180 degrees = -π rad
+    max_position: 3.14                 # +180 degrees = +π rad
     has_velocity_limits: true
     max_velocity: 2.62                 # 2.62 rad/s = 18,000 steps/s (below resonance)
     has_acceleration_limits: true

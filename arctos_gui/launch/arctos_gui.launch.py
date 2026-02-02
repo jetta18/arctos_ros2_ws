@@ -1,5 +1,9 @@
 from launch import LaunchDescription
-from launch.actions import TimerAction, LogInfo
+from launch.actions import TimerAction, LogInfo, RegisterEventHandler, EmitEvent
+from launch.event_handlers import OnProcessExit
+from launch.events import Shutdown
+from launch.actions import IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 from launch_ros.descriptions import ParameterValue
 from launch.substitutions import PathJoinSubstitution, Command, FindExecutable
@@ -10,6 +14,7 @@ import os
 def generate_launch_description():
     # Paketpfade
     arctos_description_dir = get_package_share_directory('arctos_description')
+    arctos_moveit_dir = get_package_share_directory('arctos_moveit_config')
 
     # URDF via xacro generieren
     robot_description_content = Command(
@@ -75,11 +80,19 @@ def generate_launch_description():
         output='screen',
     )
 
+    # 6) MoveIt move_group (ohne RViz)
+    move_group_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([arctos_moveit_dir, "launch", "move_group.launch.py"])
+        )
+    )
+
     # Zeitliche Staffelung:
     # - erst control_node starten
     # - nach 3 s joint_state_broadcaster
     # - nach 5 s arctos_controller
     # - nach 7 s GUI
+    # - nach GUI Start: MoveIt (ohne RViz)
 
     delayed_joint_state_broadcaster = TimerAction(
         period=3.0,
@@ -96,12 +109,30 @@ def generate_launch_description():
         actions=[arctos_gui_node],
     )
 
+    # MoveIt starten nach GUI
+    delayed_moveit = TimerAction(
+        period=8.0,
+        actions=[move_group_launch],
+    )
+
+    shutdown_on_control_exit = RegisterEventHandler(
+        OnProcessExit(
+            target_action=control_node,
+            on_exit=[
+                LogInfo(msg=["ros2_control_node exited. Shutting down launch..."]),
+                EmitEvent(event=Shutdown(reason="ros2_control_node exited")),
+            ],
+        )
+    )
+
     return LaunchDescription([
-        LogInfo(msg=["Launching Arctos GUI with own ros2_control_node..."]),
+        LogInfo(msg=["Launching Arctos GUI with MoveIt..."]),
 
         # Robot Description + ros2_control_node
         robot_state_pub_node,
         control_node,
+
+        shutdown_on_control_exit,
 
         # Controller-Spawner (zeitlich verzögert)
         delayed_joint_state_broadcaster,
@@ -109,4 +140,7 @@ def generate_launch_description():
 
         # GUI (nachdem Controller aktiv sein sollten)
         delayed_gui,
+
+        # MoveIt (nach GUI)
+        delayed_moveit,
     ])

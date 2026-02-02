@@ -1,6 +1,6 @@
 """Main window for Arctos GUI."""
 
-from PyQt5.QtGui import QGuiApplication, QShowEvent
+from PyQt5.QtGui import QCloseEvent, QGuiApplication, QShowEvent
 from PyQt5.QtWidgets import (
     QMainWindow,
     QTabWidget,
@@ -12,10 +12,11 @@ from PyQt5.QtWidgets import (
 class ArctosMainWindow(QMainWindow):
     """Main window for the Arctos robot control GUI."""
 
-    def __init__(self, jog_client, mks_config_client=None) -> None:
+    def __init__(self, jog_client, cartesian_jog_client=None, mks_config_client=None) -> None:
         super().__init__()
         self._initial_geometry_applied = False
         self._jog_client = jog_client
+        self._cartesian_jog_client = cartesian_jog_client
         # mks_config_client is no longer needed - using direct CAN
         self._setup_ui()
 
@@ -25,6 +26,15 @@ class ArctosMainWindow(QMainWindow):
             return
         self._apply_initial_window_geometry()
         self._initial_geometry_applied = True
+
+    def closeEvent(self, a0: QCloseEvent) -> None:  # noqa: N802 (Qt override)
+        if hasattr(self, "_mks_config_widget") and self._mks_config_widget is not None:
+            try:
+                self._mks_config_widget.shutdown()
+            except Exception:
+                pass
+
+        super().closeEvent(a0)
 
     def _setup_ui(self) -> None:
         """Setup the user interface."""
@@ -51,7 +61,13 @@ class ArctosMainWindow(QMainWindow):
         # Add jog tab
         from ..components.jog import JogWidget
         self._jog_widget = JogWidget(self._jog_client)
-        self._tab_widget.addTab(self._jog_widget, "Jog Control")
+        self._tab_widget.addTab(self._jog_widget, "Joint Jog")
+
+        # Add cartesian jog tab
+        if self._cartesian_jog_client:
+            from ..components.cartesian_jog import CartesianJogWidget
+            self._cartesian_jog_widget = CartesianJogWidget(self._cartesian_jog_client)
+            self._tab_widget.addTab(self._cartesian_jog_widget, "Cartesian Jog")
 
         # Add MKS config tab
         from ..components.mks_config import MKSConfigWidget

@@ -22,7 +22,9 @@ _LOGGER = logging.getLogger(__name__)
 class ArctosRosJogClient(JogClient):
     """ROS 2-based jog client for the joint trajectory controller."""
 
-    def __init__(self) -> None:
+    def __init__(self, node_name: str = "arctos_jog_client") -> None:
+        self._node_name = str(node_name)
+
         self.joint_names = [
             "X_joint",
             "Y_joint",
@@ -62,6 +64,13 @@ class ArctosRosJogClient(JogClient):
 
     def is_connected(self) -> bool:
         return self._connected
+
+    def get_current_position(self, axis_index: int) -> float:
+        if axis_index < 0 or axis_index >= len(self._current_positions):
+            raise ValueError(f"Invalid axis_index {axis_index}")
+
+        with self._state_lock:
+            return float(self._current_positions[axis_index])
 
     def send_jog(self, axis_index: int, delta_rad: float, velocity_rad_s: float) -> None:
         """Jog a single joint by `delta_rad`.
@@ -114,7 +123,7 @@ class ArctosRosJogClient(JogClient):
         if not rclpy.ok():
             rclpy.init()
 
-        self._ros_node = rclpy.create_node("arctos_jog_client")
+        self._ros_node = rclpy.create_node(self._node_name)
 
         self._cmd_pub = self._ros_node.create_publisher(
             JointTrajectory,
