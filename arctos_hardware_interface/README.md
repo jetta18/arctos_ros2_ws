@@ -27,7 +27,7 @@ STM32H755 @ 480MHz
 ## Protocol
 
 ### Commands
-- `CMD_JTC_STREAM (0x01)`: ROS2 JTC streaming (position, velocity, acceleration)
+- `CMD_JTC_STREAM (0x01)`: ROS2 JTC streaming (position, velocity)
 - `CMD_SET_DIRECT (0x02)`: Direct 6-axis control
 - `CMD_MOVE_SINGLE (0x03)`: Single axis control (debugging)
 - `CMD_GET_STATE (0x10)`: Query current state

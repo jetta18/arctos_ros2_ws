@@ -85,7 +85,7 @@ private:
   bool reconnect_enabled_;
   std::atomic_bool shutdown_requested_;
 
-  // Joint data (in radians and rad/s)
+  // Joint data (in radians, rad/s)
   std::vector<double> hw_commands_positions_;
   std::vector<double> hw_commands_velocities_;
   std::vector<double> hw_states_positions_;

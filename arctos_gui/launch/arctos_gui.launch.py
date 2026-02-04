@@ -109,9 +109,9 @@ def generate_launch_description():
         actions=[arctos_gui_node],
     )
 
-    # MoveIt starten nach GUI
+    # MoveIt starten vor GUI (damit Action Server verfügbar ist)
     delayed_moveit = TimerAction(
-        period=8.0,
+        period=6.0,
         actions=[move_group_launch],
     )
 
@@ -138,9 +138,9 @@ def generate_launch_description():
         delayed_joint_state_broadcaster,
         delayed_trajectory_controller,
 
-        # GUI (nachdem Controller aktiv sein sollten)
-        delayed_gui,
-
-        # MoveIt (nach GUI)
+        # MoveIt (vor GUI damit Action Server bereit ist)
         delayed_moveit,
+
+        # GUI (nachdem MoveIt gestartet sein sollte)
+        delayed_gui,
     ])

@@ -8,6 +8,7 @@ setup(
     packages=[
         package_name,
         f'{package_name}.components',
+        f'{package_name}.components.cartesian_jog',
         f'{package_name}.components.debug',
         f'{package_name}.components.jog',
         f'{package_name}.components.mks_config',

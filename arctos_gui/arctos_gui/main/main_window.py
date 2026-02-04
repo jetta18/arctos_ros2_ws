@@ -63,11 +63,10 @@ class ArctosMainWindow(QMainWindow):
         self._jog_widget = JogWidget(self._jog_client)
         self._tab_widget.addTab(self._jog_widget, "Joint Jog")
 
-        # Add cartesian jog tab
-        if self._cartesian_jog_client:
-            from ..components.cartesian_jog import CartesianJogWidget
-            self._cartesian_jog_widget = CartesianJogWidget(self._cartesian_jog_client)
-            self._tab_widget.addTab(self._cartesian_jog_widget, "Cartesian Jog")
+        # Add cartesian jog tab (always visible, connection handled in widget)
+        from ..components.cartesian_jog import CartesianJogWidget
+        self._cartesian_jog_widget = CartesianJogWidget(self._cartesian_jog_client)
+        self._tab_widget.addTab(self._cartesian_jog_widget, "Cartesian Jog")
 
         # Add MKS config tab
         from ..components.mks_config import MKSConfigWidget
