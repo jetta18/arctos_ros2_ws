@@ -1,26 +1,33 @@
-"""ROS 2 jog client implementing the `JogClient` protocol."""
+"""ROS 2 jog client implementing the `JogClient` protocol.
+
+Uses the FollowJointTrajectory action server exposed by
+ArctosSegmentController to send small jog trajectories.
+"""
 
 from __future__ import annotations
 
 import logging
 import threading
-from typing import Any, Optional
+from typing import Optional
 
 import rclpy
+from rclpy.action import ActionClient
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from control_msgs.action import FollowJointTrajectory
 from sensor_msgs.msg import JointState
-from trajectory_msgs.msg import JointTrajectory
-from trajectory_msgs.msg import JointTrajectoryPoint
+from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 from .jog_client_protocol import JogClient
 
 
 _LOGGER = logging.getLogger(__name__)
 
+_ACTION_NAME = "/arctos_controller/follow_joint_trajectory"
+
 
 class ArctosRosJogClient(JogClient):
-    """ROS 2-based jog client for the joint trajectory controller."""
+    """ROS 2-based jog client using FollowJointTrajectory action."""
 
     def __init__(self, node_name: str = "arctos_jog_client") -> None:
         self._node_name = str(node_name)
@@ -39,7 +46,7 @@ class ArctosRosJogClient(JogClient):
         self._ros_node: Optional[Node] = None
         self._ros_executor: Optional[MultiThreadedExecutor] = None
         self._ros_thread: Optional[threading.Thread] = None
-        self._cmd_pub: Optional[Any] = None
+        self._action_client: Optional[ActionClient] = None
         self._connected = False
 
         self.connect()
@@ -73,26 +80,20 @@ class ArctosRosJogClient(JogClient):
             return float(self._current_positions[axis_index])
 
     def send_jog(self, axis_index: int, delta_rad: float, velocity_rad_s: float) -> None:
-        """Jog a single joint by `delta_rad`.
-        """
-        pub = self._cmd_pub
-        if not self._connected or pub is None:
+        """Jog a single joint by `delta_rad` via FollowJointTrajectory action."""
+        if not self._connected or self._action_client is None:
             raise RuntimeError("ROS jog client not connected")
 
         if axis_index < 0 or axis_index >= len(self._current_positions):
             raise ValueError(f"Invalid axis_index {axis_index}")
 
-        # Build a small trajectory for the joint_trajectory_controller.
-        # We keep the other joints at their current positions.
         with self._state_lock:
             start_positions = list(self._current_positions)
             self._current_positions[axis_index] += float(delta_rad)
             target_positions = list(self._current_positions)
 
         speed = max(float(velocity_rad_s), 1e-6)
-        duration_s = abs(float(delta_rad)) / speed
-        # Avoid zero-duration trajectories (can be treated as a step).
-        duration_s = max(duration_s, 0.05)
+        duration_s = max(abs(float(delta_rad)) / speed, 0.05)
         sec = int(duration_s)
         nanosec = int((duration_s - sec) * 1e9)
 
@@ -100,8 +101,8 @@ class ArctosRosJogClient(JogClient):
         start_velocities[axis_index] = speed if delta_rad >= 0.0 else -speed
         end_velocities = [0.0] * len(self.joint_names)
 
-        msg = JointTrajectory()
-        msg.joint_names = list(self.joint_names)
+        traj = JointTrajectory()
+        traj.joint_names = list(self.joint_names)
 
         pt0 = JointTrajectoryPoint()
         pt0.positions = start_positions
@@ -115,9 +116,12 @@ class ArctosRosJogClient(JogClient):
         pt1.time_from_start.sec = sec
         pt1.time_from_start.nanosec = nanosec
 
-        msg.points = [pt0, pt1]
+        traj.points = [pt0, pt1]
 
-        pub.publish(msg)
+        goal = FollowJointTrajectory.Goal()
+        goal.trajectory = traj
+
+        self._action_client.send_goal_async(goal)
 
     def _start_ros(self) -> None:
         if not rclpy.ok():
@@ -125,10 +129,10 @@ class ArctosRosJogClient(JogClient):
 
         self._ros_node = rclpy.create_node(self._node_name)
 
-        self._cmd_pub = self._ros_node.create_publisher(
-            JointTrajectory,
-            "/arctos_controller/joint_trajectory",
-            10,
+        self._action_client = ActionClient(
+            self._ros_node,
+            FollowJointTrajectory,
+            _ACTION_NAME,
         )
 
         self._ros_node.create_subscription(
@@ -166,7 +170,7 @@ class ArctosRosJogClient(JogClient):
         self._ros_thread = None
         self._ros_executor = None
         self._ros_node = None
-        self._cmd_pub = None
+        self._action_client = None
 
     def _spin(self) -> None:
         executor = self._ros_executor

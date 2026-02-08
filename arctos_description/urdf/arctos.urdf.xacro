@@ -1,12 +1,11 @@
 <?xml version="1.0"?>
-<!-- Entry point: include this file to get full Arctos robot description -->
+<!-- Entry point: full Arctos robot description with ros2_control hardware -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="arctos">
 
   <!-- Macro libraries -->
   <xacro:include filename="$(find arctos_description)/urdf/macros/materials.xacro"/>
   <xacro:include filename="$(find arctos_description)/urdf/macros/link_macro.xacro"/>
   <xacro:include filename="$(find arctos_description)/urdf/macros/joint_macro.xacro"/>
-  <xacro:include filename="$(find arctos_description)/urdf/macros/control_macro.xacro"/>
 
   <!-- Robot sub-assemblies -->
   <xacro:include filename="$(find arctos_description)/urdf/parts/arm_links.xacro"/>
@@ -16,7 +15,6 @@
   <!-- ros2_control hardware definition -->
   <xacro:include filename="$(find arctos_description)/urdf/hardware/ros2_control.xacro"/>
 
-  <!-- Expose the ros2_control macro so caller can choose the name -->
   <xacro:arctos_ros2_control name="arctos_interface"/>
 
 </robot>

@@ -1,5 +1,5 @@
 #include "arctos_controller/arctos_segment_controller.hpp"
-#include "arctos_hardware_interface/stm32_trajectory_interface.hpp"
+#include "arctos_hardware_interface/stm32_hardware_interface.hpp"
 
 #include <algorithm>
 #include <cstring>
@@ -48,7 +48,7 @@ controller_interface::CallbackReturn ArctosSegmentController::on_configure(
   }
 
   RCLCPP_INFO(get_node()->get_logger(),
-              "Configured ArctosSegmentController v2: %zu joints", joints_.size());
+              "Configured ArctosSegmentController: %zu joints", joints_.size());
   return controller_interface::CallbackReturn::SUCCESS;
 }
 
@@ -66,7 +66,7 @@ controller_interface::CallbackReturn ArctosSegmentController::on_activate(
     if (ci.get_interface_name() == "hw_interface_ptr")
     {
       double val = ci.get_value();
-      arctos_hardware_interface::STM32TrajectoryInterface * ptr = nullptr;
+      arctos_hardware_interface::STM32HardwareInterface * ptr = nullptr;
       std::memcpy(&ptr, &val, sizeof(ptr));
       hw_interface_ = ptr;
       break;
@@ -96,7 +96,7 @@ controller_interface::CallbackReturn ArctosSegmentController::on_activate(
     std::bind(&ArctosSegmentController::handle_accepted, this, _1));
 
   RCLCPP_INFO(get_node()->get_logger(),
-              "Activated ArctosSegmentController v2, action: %s", action_name.c_str());
+              "Activated ArctosSegmentController, action: %s", action_name.c_str());
   return controller_interface::CallbackReturn::SUCCESS;
 }
 

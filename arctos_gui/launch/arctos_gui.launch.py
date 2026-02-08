@@ -50,8 +50,8 @@ def generate_launch_description():
         arguments=[
             '--ros-args',
             '--log-level', 'info',
-            # z.B. zum Debuggen:
-            # '--log-level', 'STM32StepperInterface:=debug',
+            # e.g. for debugging:
+            # '--log-level', 'STM32HardwareInterface:=debug',
             # '--log-level', 'controller_manager:=debug',
         ],
     )

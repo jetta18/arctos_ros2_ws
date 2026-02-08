@@ -11,18 +11,18 @@
 #include "control_msgs/action/follow_joint_trajectory.hpp"
 #include "trajectory_msgs/msg/joint_trajectory.hpp"
 
-namespace arctos_hardware_interface { class STM32TrajectoryInterface; }
+namespace arctos_hardware_interface { class STM32HardwareInterface; }
 
 namespace arctos_controller
 {
 
 /**
- * ArctosSegmentController (v2)
+ * ArctosSegmentController
  *
  * Receives FollowJointTrajectory goals from MoveIt / RViz,
  * converts trajectory points from radians to steps, uploads them
  * to the STM32 via the shared protocol owned by
- * STM32TrajectoryInterface, and monitors execution via GET_STATE.
+ * STM32HardwareInterface, and monitors execution via GET_STATE.
  *
  * Uses a single command interface ("trajectory_hw/hw_interface_ptr")
  * to obtain a pointer to the HW interface, then calls
@@ -57,7 +57,7 @@ private:
   std::vector<std::string> joints_;
 
   /* Pointer to the HW interface (obtained from command interface) */
-  arctos_hardware_interface::STM32TrajectoryInterface * hw_interface_;
+  arctos_hardware_interface::STM32HardwareInterface * hw_interface_;
 
   /* Goal tracking */
   std::mutex mtx_;

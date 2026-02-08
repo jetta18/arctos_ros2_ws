@@ -11,7 +11,6 @@ setup(
         f'{package_name}.components.cartesian_jog',
         f'{package_name}.components.debug',
         f'{package_name}.components.jog',
-        f'{package_name}.components.mks_config',
         f'{package_name}.main',
         f'{package_name}.ui',
     ],

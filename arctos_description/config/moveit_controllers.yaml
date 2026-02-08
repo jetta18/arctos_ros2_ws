@@ -1,5 +1,3 @@
-# MoveIt uses this configuration for controller management
-
 moveit_controller_manager: moveit_simple_controller_manager/MoveItSimpleControllerManager
 
 moveit_simple_controller_manager:
@@ -7,8 +5,8 @@ moveit_simple_controller_manager:
     - arctos_controller
 
   arctos_controller:
-    type: arctos_controller
-    action_ns: ArctosController
+    type: FollowJointTrajectory
+    action_ns: follow_joint_trajectory
     default: true
     joints:
       - X_joint

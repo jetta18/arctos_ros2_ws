@@ -1,25 +1,20 @@
 from launch import LaunchDescription
-from launch.actions import RegisterEventHandler, DeclareLaunchArgument, TimerAction, EmitEvent
+from launch.actions import RegisterEventHandler, TimerAction, EmitEvent, LogInfo
 from launch.event_handlers import OnProcessExit
-from launch.actions import IncludeLaunchDescription, LogInfo
+from launch.actions import IncludeLaunchDescription
 from launch.events import Shutdown
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command, FindExecutable
+from launch.substitutions import PathJoinSubstitution, Command, FindExecutable
 from ament_index_python.packages import get_package_share_directory
 from launch_ros.actions import Node
 from launch_ros.descriptions import ParameterValue
 import os
-from moveit_configs_utils import MoveItConfigsBuilder
 
 
 def generate_launch_description():
-    # Get package paths
     arctos_description_dir = get_package_share_directory('arctos_description')
     arctos_moveit_dir = get_package_share_directory('arctos_moveit_config')
 
-    # RViz is launched via MoveIt include
-
-    # Get URDF via xacro
     robot_description_content = Command(
         [
             PathJoinSubstitution([FindExecutable(name="xacro")]),
@@ -28,17 +23,14 @@ def generate_launch_description():
         ]
     )
 
-    robot_description = {"robot_description": ParameterValue(robot_description_content, value_type=str)}
+    robot_description = {
+        "robot_description": ParameterValue(robot_description_content, value_type=str)
+    }
 
-    # Parameters
     ros2_controllers_params = os.path.join(
         arctos_description_dir, 'config', 'ros2_controllers.yaml'
     )
 
-    # NOTE: No separate CAN bridge nodes needed!
-    # Our MKS Motor Driver uses direct SocketCAN access via integrated SocketCANBridge
-
-    # Robot State Publisher
     robot_state_pub_node = Node(
         package="robot_state_publisher",
         executable="robot_state_publisher",
@@ -46,7 +38,6 @@ def generate_launch_description():
         parameters=[robot_description],
     )
 
-    # ROS2 Control Node (Hardware Interface + Controller Manager)
     control_node = Node(
         package="controller_manager",
         executable="ros2_control_node",
@@ -55,9 +46,6 @@ def generate_launch_description():
         arguments=[
             '--ros-args',
             '--log-level', 'info',
-            # Uncomment for debugging:
-            # '--log-level', 'arctos_hardware_interface:=debug',
-            # '--log-level', 'controller_manager:=debug'
         ],
     )
 
@@ -73,7 +61,6 @@ def generate_launch_description():
         arguments=["arctos_controller", "--controller-manager", "/controller_manager"],
     )
 
-    # Include MoveIt Launch
     move_group_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([arctos_moveit_dir, "launch", "move_group.launch.py"])
@@ -85,18 +72,11 @@ def generate_launch_description():
         )
     )
 
-    # Delayed controller spawning to ensure proper startup sequence
-    # 1. Start control node (hardware interface with direct CAN access)
-    # 2. Start joint state broadcaster
-    # 3. Start robot controller
-    # 4. Start MoveIt and RViz
-    
     delayed_joint_state_broadcaster = TimerAction(
-        period=3.0,  # Wait 3 seconds for hardware interface to initialize
+        period=3.0,
         actions=[joint_state_broadcaster_spawner]
     )
-    
-    # Ensure robot controller starts after joint state broadcaster
+
     delay_robot_controller_spawner = RegisterEventHandler(
         event_handler=OnProcessExit(
             target_action=joint_state_broadcaster_spawner,
@@ -104,12 +84,12 @@ def generate_launch_description():
         )
     )
 
-    # Delay rviz and moveit launch until controllers are ready
     delay_rviz_and_moveit_launch = RegisterEventHandler(
         event_handler=OnProcessExit(
             target_action=robot_controller_spawner,
             on_exit=[moveit_rviz_launch, move_group_launch]
-        ))
+        )
+    )
 
     shutdown_on_control_exit = RegisterEventHandler(
         OnProcessExit(
@@ -120,22 +100,16 @@ def generate_launch_description():
             ],
         )
     )
-    
+
     return LaunchDescription([
         LogInfo(msg=["Launching Arctos Robot System..."]),
-        
-        # Robot description
-        robot_state_pub_node,
-        
-        # Hardware interface and controller manager (direct CAN access)
-        control_node,
 
+        robot_state_pub_node,
+        control_node,
         shutdown_on_control_exit,
-        
-        # Controllers (delayed and sequenced)
+
         delayed_joint_state_broadcaster,
         delay_robot_controller_spawner,
-        
-        # MoveIt and RViz (after controllers are ready)
+
         delay_rviz_and_moveit_launch,
     ])

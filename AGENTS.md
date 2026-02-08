@@ -9,11 +9,9 @@ Packages in this repo (build types)
 - `arctos_gui` (ament_python, PyQt5 + rclpy)
 - `arctos_controller` (ament_cmake, C++17 ros2_control controller plugin)
 - `arctos_hardware_interface` (ament_cmake, C++17 ros2_control hardware plugin)
-- `mks_motor_driver` (ament_cmake, C++17 low-level SocketCAN driver)
 - `arctos_description`, `arctos_bringup`, `arctos_moveit_config` (ament_cmake; URDF/config/launch; MoveIt config is mostly auto-generated)
 
 Other top-level dirs
-- `scripts/`: local Python tools (CAN + STM32 manual testing)
 - `stm32_scripts/`: STM32-side notes/examples (not part of colcon build)
 - `docs/`: architecture notes + reference PDFs
 
@@ -39,7 +37,7 @@ Clean builds (when things get weird)
 
 Common runs (after `source install/setup.bash`)
 - GUI: `ros2 run arctos_gui arctos_gui`
-- Bringup: `ros2 launch arctos_bringup arctos_bringup.launch.py` (or `demo.launch.py`)
+- Bringup: `ros2 launch arctos_bringup arctos_bringup.launch.py`
 
 Dependencies (optional)
 - Install ROS deps: `rosdep install --from-paths src -i -y --rosdistro $ROS_DISTRO`
@@ -47,7 +45,7 @@ Dependencies (optional)
 Gotchas
 - `colcon build/test` must run from the workspace root (`/home/michael/arctos_ws`), not this git root.
 - If `ros2` can't find packages, confirm `echo $AMENT_PREFIX_PATH` includes `/home/michael/arctos_ws/install`.
-- `arctos_gui` talks to MKS servos via direct CAN (`python-can` + `mks_servo_can`); ensure those Python deps are installed.
+- `arctos_gui` uses the FollowJointTrajectory action server for jogging.
 
 ## Test (colcon)
 
@@ -64,7 +62,6 @@ Run a single test (recommended patterns)
 
 Notes
 - `arctos_gui/test/` contains ROS 2 linter tests (ament_flake8 / ament_pep257 / ament_copyright).
-- `arctos_controller/test/` contains gtest sources, but `arctos_controller/CMakeLists.txt` currently does not register tests under `if(BUILD_TESTING)`.
 - If you add tests/lints, use standard ament patterns: `ament_add_gtest(...)` and/or `find_package(ament_lint_auto REQUIRED)` + `ament_lint_auto_find_test_dependencies()`.
 
 ## Lint
@@ -95,7 +92,7 @@ Clean Code policy (apply everywhere)
 - Tests: readable, fast, independent, repeatable; one assert (or one concept) per test; hardware-free by default.
 - Smells to avoid: rigidity, fragility, immobility, needless complexity, needless repetition, opacity.
 
-Python (`arctos_gui/`, `scripts/`)
+Python (`arctos_gui/`)
 - Formatting: 4 spaces; PEP8-ish line lengths; wrap long Qt stylesheet strings carefully.
 - Imports: standard library, third-party, then local; one import per line; no wildcard imports.
 - Docstrings: PEP257 (module/class/function docstrings; first line is a short summary).
@@ -107,7 +104,7 @@ Python (`arctos_gui/`, `scripts/`)
 - Use `dataclasses` for simple state/config objects instead of nested dicts.
 - Threads: never touch Qt widgets off the UI thread; stop/join workers in `closeEvent`.
 
-C++ (C++17; `arctos_*`, `mks_motor_driver/`)
+C++ (C++17; `arctos_*`)
 - Match local formatting (this repo mixes brace/indent styles); keep changes minimal.
 - Headers: follow the package's existing pattern (`#pragma once` vs include guards); avoid `using namespace` in headers.
 - Includes: prefer `#include <...>` then `#include "..."`; forward declare when it reduces dependencies.
@@ -126,7 +123,7 @@ ROS 2 / ament specifics
 - Declare parameters with defaults early, validate them on configure, and keep parameter reads out of hot loops.
 - Create publishers/subscribers/timers once (init/configure), not inside high-rate update paths.
 - Plugin packages must keep plugin XML and class names in sync:
-  - `arctos_hardware_interface/arctos_hardware_interface.xml`: `arctos_hardware_interface/STM32StepperInterface`
+  - `arctos_hardware_interface/arctos_hardware_interface.xml`: `arctos_hardware_interface/STM32HardwareInterface`
   - `arctos_controller/arctos_controller.xml`: `arctos_controller/ArctosSegmentController`
 - Public headers live in `include/<pkg>/...` and must be installed via `install(DIRECTORY include/ ...)`.
 - For new libs/executables: add `ament_target_dependencies(...)` and `install(TARGETS ...)`.
@@ -146,4 +143,4 @@ Agent hygiene
 Hardware-facing code
 - Do not change protocol constants/byte layouts without updating docs and the STM32 side.
 - Keep reconnection logic rate-limited; avoid blocking calls in hot control loops.
-- Default interfaces seen in this repo: SocketCAN `can0`, STM32 endpoint `192.168.178.159:8888`.
+- Default interface: STM32 endpoint `192.168.178.159:8888` (UDP).

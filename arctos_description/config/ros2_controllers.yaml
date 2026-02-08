@@ -1,14 +1,12 @@
-# ros2_control controller and controller_manager parameters
-
 controller_manager:
   ros__parameters:
-    update_rate: 100  
+    update_rate: 100
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
 
     arctos_controller:
-      type: "joint_trajectory_controller/JointTrajectoryController"
+      type: arctos_controller/ArctosSegmentController
 
 arctos_controller:
   ros__parameters:
@@ -19,44 +17,3 @@ arctos_controller:
       - A_joint
       - B_joint
       - C_joint
-    command_interfaces:
-      - position
-      # - velocity
-    state_interfaces:
-      - position
-      - velocity
-
-    # Controller configuration
-    action_monitor_rate: 100.0  
-    allow_integration_in_goal_trajectories: false
-    allow_nonzero_velocity_at_trajectory_end: false  
-    allow_partial_joints_goal: false
-    open_loop_control: false
-    
-    state_publish_rate: 100.0  
-    
-    cmd_timeout: 0.0
-    
-    interpolation_method: "splines"
-    
-    constraints:
-      stopped_velocity_tolerance: 0.01  
-      goal_time: 15.0  
-      X_joint:
-        trajectory: -1.0  
-        goal: 0.01
-      Y_joint:
-        trajectory: -1.0  
-        goal: 0.01
-      Z_joint:
-        trajectory: -1.0  
-        goal: 0.01
-      A_joint:
-        trajectory: -1.0  
-        goal: 0.01
-      B_joint:
-        trajectory: -1.0  
-        goal: 0.01
-      C_joint:
-        trajectory: -1.0  
-        goal: 0.01

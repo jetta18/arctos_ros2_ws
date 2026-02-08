@@ -4,7 +4,7 @@ controller_manager:
     update_rate: 100  # Hz
 
     arctos_controller:
-      type: joint_trajectory_controller/JointTrajectoryController
+      type: arctos_controller/ArctosSegmentController
 
 
     gripper_controller:
@@ -23,11 +23,6 @@ arctos_controller:
       - A_joint
       - B_joint
       - C_joint
-    command_interfaces:
-      - position
-      - velocity
-    state_interfaces:
-      - position
 gripper_controller:
   ros__parameters:
     joint: Left_jaw_joint

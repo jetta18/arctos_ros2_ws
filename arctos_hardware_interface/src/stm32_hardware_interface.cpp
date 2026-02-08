@@ -1,4 +1,4 @@
-#include "arctos_hardware_interface/stm32_trajectory_interface.hpp"
+#include "arctos_hardware_interface/stm32_hardware_interface.hpp"
 
 #include <chrono>
 #include <cstring>
@@ -6,21 +6,21 @@
 namespace arctos_hardware_interface
 {
 
-STM32TrajectoryInterface::STM32TrajectoryInterface()
+STM32HardwareInterface::STM32HardwareInterface()
 : reconnect_enabled_(true),
   shutdown_requested_(false),
   hw_system_state_(0.0),
   hw_interface_ptr_value_(0.0),
-  logger_(rclcpp::get_logger("STM32TrajectoryInterface"))
+  logger_(rclcpp::get_logger("STM32HardwareInterface"))
 {
 }
 
-STM32TrajectoryInterface::~STM32TrajectoryInterface()
+STM32HardwareInterface::~STM32HardwareInterface()
 {
   perform_lifecycle_cleanup();
 }
 
-hardware_interface::CallbackReturn STM32TrajectoryInterface::on_init(
+hardware_interface::CallbackReturn STM32HardwareInterface::on_init(
   const hardware_interface::HardwareInfo & info)
 {
   if (hardware_interface::SystemInterface::on_init(info) !=
@@ -77,10 +77,10 @@ hardware_interface::CallbackReturn STM32TrajectoryInterface::on_init(
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
-hardware_interface::CallbackReturn STM32TrajectoryInterface::on_configure(
+hardware_interface::CallbackReturn STM32HardwareInterface::on_configure(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
-  RCLCPP_INFO(logger_, "Configuring STM32 Trajectory Interface...");
+  RCLCPP_INFO(logger_, "Configuring STM32 Hardware Interface...");
 
   if (!socket_manager_->connect())
   {
@@ -88,21 +88,21 @@ hardware_interface::CallbackReturn STM32TrajectoryInterface::on_configure(
     return hardware_interface::CallbackReturn::ERROR;
   }
 
-  protocol_ = std::make_unique<utils::STM32ProtocolV2>(
+  protocol_ = std::make_unique<utils::STM32Protocol>(
     socket_manager_->get_socket_fd(), logger_);
 
   if (!protocol_->ping())
   {
-    RCLCPP_ERROR(logger_, "STM32 did not respond to v2 PING");
+    RCLCPP_ERROR(logger_, "STM32 did not respond to PING");
     socket_manager_->disconnect();
     return hardware_interface::CallbackReturn::ERROR;
   }
 
-  RCLCPP_INFO(logger_, "Successfully configured (protocol v2)");
+  RCLCPP_INFO(logger_, "Successfully configured");
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
-hardware_interface::CallbackReturn STM32TrajectoryInterface::on_cleanup(
+hardware_interface::CallbackReturn STM32HardwareInterface::on_cleanup(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
   RCLCPP_INFO(logger_, "Cleaning up...");
@@ -110,7 +110,7 @@ hardware_interface::CallbackReturn STM32TrajectoryInterface::on_cleanup(
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
-hardware_interface::CallbackReturn STM32TrajectoryInterface::on_shutdown(
+hardware_interface::CallbackReturn STM32HardwareInterface::on_shutdown(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
   RCLCPP_INFO(logger_, "Shutting down...");
@@ -118,7 +118,7 @@ hardware_interface::CallbackReturn STM32TrajectoryInterface::on_shutdown(
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
-hardware_interface::CallbackReturn STM32TrajectoryInterface::on_error(
+hardware_interface::CallbackReturn STM32HardwareInterface::on_error(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
   RCLCPP_ERROR(logger_, "Error state, stopping and disconnecting...");
@@ -131,7 +131,7 @@ hardware_interface::CallbackReturn STM32TrajectoryInterface::on_error(
 }
 
 std::vector<hardware_interface::StateInterface>
-STM32TrajectoryInterface::export_state_interfaces()
+STM32HardwareInterface::export_state_interfaces()
 {
   std::vector<hardware_interface::StateInterface> interfaces;
 
@@ -150,7 +150,7 @@ STM32TrajectoryInterface::export_state_interfaces()
 }
 
 std::vector<hardware_interface::CommandInterface>
-STM32TrajectoryInterface::export_command_interfaces()
+STM32HardwareInterface::export_command_interfaces()
 {
   std::vector<hardware_interface::CommandInterface> interfaces;
 
@@ -168,7 +168,7 @@ STM32TrajectoryInterface::export_command_interfaces()
   return interfaces;
 }
 
-hardware_interface::CallbackReturn STM32TrajectoryInterface::on_activate(
+hardware_interface::CallbackReturn STM32HardwareInterface::on_activate(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
   RCLCPP_INFO(logger_, "Activating...");
@@ -181,7 +181,7 @@ hardware_interface::CallbackReturn STM32TrajectoryInterface::on_activate(
   if (protocol_ && protocol_->read_state(state))
   {
     for (size_t i = 0; i < hw_states_positions_.size() &&
-         i < utils::ProtocolV2Constants::MAX_JOINTS; ++i)
+         i < utils::ProtocolConstants::MAX_JOINTS; ++i)
     {
       hw_states_positions_[i] = unit_converter_->steps_to_rad(state.positions[i], i);
       hw_states_velocities_[i] = unit_converter_->steps_per_sec_to_rad_per_sec(
@@ -197,7 +197,7 @@ hardware_interface::CallbackReturn STM32TrajectoryInterface::on_activate(
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
-hardware_interface::CallbackReturn STM32TrajectoryInterface::on_deactivate(
+hardware_interface::CallbackReturn STM32HardwareInterface::on_deactivate(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
   RCLCPP_INFO(logger_, "Deactivating...");
@@ -219,7 +219,7 @@ hardware_interface::CallbackReturn STM32TrajectoryInterface::on_deactivate(
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
-hardware_interface::return_type STM32TrajectoryInterface::read(
+hardware_interface::return_type STM32HardwareInterface::read(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
   /* Skip GET_STATE if the controller currently holds the protocol lock
@@ -235,7 +235,7 @@ hardware_interface::return_type STM32TrajectoryInterface::read(
     socket_manager_->attempt_reconnection(reconnect_enabled_, shutdown_requested_);
     if (socket_manager_->is_connected())
     {
-      protocol_ = std::make_unique<utils::STM32ProtocolV2>(
+      protocol_ = std::make_unique<utils::STM32Protocol>(
         socket_manager_->get_socket_fd(), logger_);
     }
   }
@@ -256,7 +256,7 @@ hardware_interface::return_type STM32TrajectoryInterface::read(
   }
 
   for (size_t i = 0; i < hw_states_positions_.size() &&
-       i < utils::ProtocolV2Constants::MAX_JOINTS; ++i)
+       i < utils::ProtocolConstants::MAX_JOINTS; ++i)
   {
     hw_states_positions_[i] = unit_converter_->steps_to_rad(state.positions[i], i);
     hw_states_velocities_[i] = unit_converter_->steps_per_sec_to_rad_per_sec(
@@ -268,7 +268,7 @@ hardware_interface::return_type STM32TrajectoryInterface::read(
   return hardware_interface::return_type::OK;
 }
 
-hardware_interface::return_type STM32TrajectoryInterface::write(
+hardware_interface::return_type STM32HardwareInterface::write(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
   /* Trajectories are sent out-of-band by the controller via the protocol pointer.
@@ -276,7 +276,7 @@ hardware_interface::return_type STM32TrajectoryInterface::write(
   return hardware_interface::return_type::OK;
 }
 
-void STM32TrajectoryInterface::perform_lifecycle_cleanup()
+void STM32HardwareInterface::perform_lifecycle_cleanup()
 {
   shutdown_requested_.store(true);
   reconnect_enabled_ = false;
@@ -289,7 +289,7 @@ void STM32TrajectoryInterface::perform_lifecycle_cleanup()
   protocol_.reset();
 }
 
-void STM32TrajectoryInterface::log_throttled(
+void STM32HardwareInterface::log_throttled(
   const std::string & message,
   std::chrono::steady_clock::time_point & last_log_time)
 {
@@ -306,5 +306,5 @@ void STM32TrajectoryInterface::log_throttled(
 
 #include "pluginlib/class_list_macros.hpp"
 PLUGINLIB_EXPORT_CLASS(
-  arctos_hardware_interface::STM32TrajectoryInterface,
+  arctos_hardware_interface::STM32HardwareInterface,
   hardware_interface::SystemInterface)

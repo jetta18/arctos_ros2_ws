@@ -1,5 +1,5 @@
-#ifndef ARCTOS_HARDWARE_INTERFACE__STM32_TRAJECTORY_INTERFACE_HPP_
-#define ARCTOS_HARDWARE_INTERFACE__STM32_TRAJECTORY_INTERFACE_HPP_
+#ifndef ARCTOS_HARDWARE_INTERFACE__STM32_HARDWARE_INTERFACE_HPP_
+#define ARCTOS_HARDWARE_INTERFACE__STM32_HARDWARE_INTERFACE_HPP_
 
 #include <atomic>
 #include <memory>
@@ -15,14 +15,14 @@
 #include "rclcpp_lifecycle/state.hpp"
 
 #include "arctos_hardware_interface/utils/unit_conversion.hpp"
-#include "arctos_hardware_interface/utils/stm32_protocol_v2.hpp"
+#include "arctos_hardware_interface/utils/stm32_protocol.hpp"
 #include "arctos_hardware_interface/utils/socket_manager.hpp"
 
 namespace arctos_hardware_interface
 {
 
 /**
- * Hardware interface for the Arctos v2 trajectory-based STM32 firmware.
+ * Hardware interface for the Arctos STM32 firmware.
  *
  * Owns the single UDP connection to the STM32. The controller obtains
  * a pointer to this interface (via a custom command interface) and calls
@@ -31,11 +31,11 @@ namespace arctos_hardware_interface
  * read() polls GET_STATE unless the protocol is locked by the controller.
  * write() is a no-op.
  */
-class STM32TrajectoryInterface : public hardware_interface::SystemInterface
+class STM32HardwareInterface : public hardware_interface::SystemInterface
 {
 public:
-  STM32TrajectoryInterface();
-  ~STM32TrajectoryInterface() override;
+  STM32HardwareInterface();
+  ~STM32HardwareInterface() override;
 
   hardware_interface::CallbackReturn on_init(
     const hardware_interface::HardwareInfo & info) override;
@@ -74,7 +74,7 @@ public:
   void lock_protocol() { protocol_mutex_.lock(); }
   void unlock_protocol() { protocol_mutex_.unlock(); }
 
-  utils::STM32ProtocolV2 * get_protocol() { return protocol_.get(); }
+  utils::STM32Protocol * get_protocol() { return protocol_.get(); }
   utils::UnitConverter * get_unit_converter() { return unit_converter_.get(); }
 
 private:
@@ -83,7 +83,7 @@ private:
                      std::chrono::steady_clock::time_point & last_log_time);
 
   std::unique_ptr<utils::UnitConverter> unit_converter_;
-  std::unique_ptr<utils::STM32ProtocolV2> protocol_;
+  std::unique_ptr<utils::STM32Protocol> protocol_;
   std::unique_ptr<utils::STM32SocketManager> socket_manager_;
   std::mutex protocol_mutex_;
 
@@ -110,4 +110,4 @@ private:
 
 }  // namespace arctos_hardware_interface
 
-#endif  // ARCTOS_HARDWARE_INTERFACE__STM32_TRAJECTORY_INTERFACE_HPP_
+#endif  // ARCTOS_HARDWARE_INTERFACE__STM32_HARDWARE_INTERFACE_HPP_

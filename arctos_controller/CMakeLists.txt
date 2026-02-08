@@ -51,7 +51,4 @@ ament_export_include_directories(include)
 ament_export_libraries(arctos_segment_controller)
 ament_export_dependencies(controller_interface rclcpp rclcpp_action pluginlib control_msgs trajectory_msgs arctos_hardware_interface)
 
-if(BUILD_TESTING)
-endif()
-
 ament_package()
