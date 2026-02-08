@@ -31,9 +31,21 @@ ament_target_dependencies(arctos_segment_controller
   arctos_hardware_interface
 )
 
+add_library(arctos_gripper_controller SHARED
+  src/arctos_gripper_controller.cpp
+)
+target_compile_features(arctos_gripper_controller PUBLIC cxx_std_17)
+ament_target_dependencies(arctos_gripper_controller
+  controller_interface
+  rclcpp
+  rclcpp_action
+  pluginlib
+  control_msgs
+)
+
 pluginlib_export_plugin_description_file(controller_interface arctos_controller.xml)
 
-install(TARGETS arctos_segment_controller
+install(TARGETS arctos_segment_controller arctos_gripper_controller
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
@@ -48,7 +60,7 @@ install(FILES arctos_controller.xml
 )
 
 ament_export_include_directories(include)
-ament_export_libraries(arctos_segment_controller)
+ament_export_libraries(arctos_segment_controller arctos_gripper_controller)
 ament_export_dependencies(controller_interface rclcpp rclcpp_action pluginlib control_msgs trajectory_msgs arctos_hardware_interface)
 
 ament_package()

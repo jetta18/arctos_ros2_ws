@@ -103,6 +103,17 @@ private:
   static constexpr int STEPS_PER_REV = 200;
   static constexpr int MICROSTEPS = 16;
 
+  /* Gripper (servo-driven, optional) */
+  bool gripper_enabled_;
+  double hw_gripper_position_left_;
+  double hw_gripper_position_right_;
+  double hw_gripper_command_;
+  double hw_gripper_command_prev_;
+  uint16_t servo_closed_pulse_us_;
+  uint16_t servo_open_pulse_us_;
+  double gripper_max_opening_m_;
+  double servo_speed_m_per_s_;
+
   static constexpr int LOG_THROTTLE_MS = 1000;
 
   rclcpp::Logger logger_;

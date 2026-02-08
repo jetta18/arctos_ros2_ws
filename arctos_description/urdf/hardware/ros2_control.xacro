@@ -55,6 +55,12 @@
         <state_interface name="velocity"/>
       </joint>
 
+      <!-- Gripper joint (servo-driven, optional; Right_jaw_joint mimics Left) -->
+      <joint name="Left_jaw_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+      </joint>
+
     </ros2_control>
   </xacro:macro>
 

@@ -1,10 +1,15 @@
 from launch import LaunchDescription
-from launch.actions import RegisterEventHandler, TimerAction, EmitEvent, LogInfo
+from launch.actions import (
+    DeclareLaunchArgument, RegisterEventHandler, TimerAction, EmitEvent, LogInfo,
+    IncludeLaunchDescription,
+)
+from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
-from launch.actions import IncludeLaunchDescription
 from launch.events import Shutdown
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import PathJoinSubstitution, Command, FindExecutable
+from launch.substitutions import (
+    LaunchConfiguration, PathJoinSubstitution, Command, FindExecutable,
+)
 from ament_index_python.packages import get_package_share_directory
 from launch_ros.actions import Node
 from launch_ros.descriptions import ParameterValue
@@ -55,10 +60,22 @@ def generate_launch_description():
         arguments=["joint_state_broadcaster", "--controller-manager", "/controller_manager"],
     )
 
+    use_gripper_arg = DeclareLaunchArgument(
+        'use_gripper', default_value='true',
+        description='Spawn the gripper controller (set false to disable)'
+    )
+
     robot_controller_spawner = Node(
         package="controller_manager",
         executable="spawner",
         arguments=["arctos_controller", "--controller-manager", "/controller_manager"],
+    )
+
+    gripper_controller_spawner = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=["gripper_controller", "--controller-manager", "/controller_manager"],
+        condition=IfCondition(LaunchConfiguration('use_gripper')),
     )
 
     move_group_launch = IncludeLaunchDescription(
@@ -84,6 +101,13 @@ def generate_launch_description():
         )
     )
 
+    delay_gripper_controller_spawner = RegisterEventHandler(
+        event_handler=OnProcessExit(
+            target_action=robot_controller_spawner,
+            on_exit=[gripper_controller_spawner],
+        )
+    )
+
     delay_rviz_and_moveit_launch = RegisterEventHandler(
         event_handler=OnProcessExit(
             target_action=robot_controller_spawner,
@@ -102,6 +126,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        use_gripper_arg,
         LogInfo(msg=["Launching Arctos Robot System..."]),
 
         robot_state_pub_node,
@@ -110,6 +135,7 @@ def generate_launch_description():
 
         delayed_joint_state_broadcaster,
         delay_robot_controller_spawner,
+        delay_gripper_controller_spawner,
 
         delay_rviz_and_moveit_launch,
     ])

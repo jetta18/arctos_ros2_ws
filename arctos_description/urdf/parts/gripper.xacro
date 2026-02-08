@@ -31,14 +31,19 @@
                       parent="Link_6_1" child="Gripper_1"/>
 
   <!-- Prismatic jaws -->
-  <xacro:arctos_joint name="Left_jaw_joint" type="fixed"
+  <xacro:arctos_joint name="Left_jaw_joint" type="prismatic"
                       parent="Gripper_1" child="Left_jaw_1"
                       axis_xyz="0 0 -1"
                       limit_u="0.015" limit_l="0" limit_e="1" limit_v="10"/>
 
-  <xacro:arctos_joint name="Right_jaw_joint" type="fixed"
-                      parent="Gripper_1" child="Right_jaw_1"
-                      axis_xyz="0 0 1"
-                      limit_u="0.015" limit_l="0" limit_e="1" limit_v="10"/>
+  <!-- Right jaw mirrors Left jaw (mimic joint, multiplier=1) -->
+  <joint name="Right_jaw_joint" type="prismatic">
+    <parent link="Gripper_1"/>
+    <child link="Right_jaw_1"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit upper="0.015" lower="0" effort="1" velocity="10"/>
+    <mimic joint="Left_jaw_joint" multiplier="1.0" offset="0.0"/>
+  </joint>
 
 </robot>

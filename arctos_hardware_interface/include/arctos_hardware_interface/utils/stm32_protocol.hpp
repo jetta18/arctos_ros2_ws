@@ -27,6 +27,7 @@ struct ProtocolConstants
   static constexpr uint8_t CMD_TRAJ_BEGIN   = 0x40;
   static constexpr uint8_t CMD_TRAJ_POINT   = 0x41;
   static constexpr uint8_t CMD_TRAJ_EXECUTE = 0x42;
+  static constexpr uint8_t CMD_SET_SERVO   = 0x30;
   static constexpr uint8_t CMD_TRAJ_CANCEL  = 0x43;
 
   static constexpr uint8_t RESP_OK       = 0x00;
@@ -58,6 +59,7 @@ struct StateResponse
   uint16_t traj_points_loaded;
   uint16_t traj_current_segment;
   uint16_t traj_total_segments;
+  uint16_t servo_pulse_us;
 };
 
 struct TrajectoryPoint
@@ -82,6 +84,8 @@ public:
     const TrajectoryPoint & point);
   bool trajectory_execute(uint32_t trajectory_id);
   bool trajectory_cancel();
+
+  bool set_servo(uint16_t pulse_us, uint16_t duration_ms);
 
 private:
   struct __attribute__((packed)) Header

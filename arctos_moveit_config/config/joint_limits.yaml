@@ -91,13 +91,8 @@ joint_limits:
     has_acceleration_limits: true
     max_acceleration: 32.73            # HW-limited: 39.27/1.2 → 166,747 steps/s²
 
-  # ── Gripper joints (not connected to stepper engine) ───────────────
+  # ── Gripper joint (servo-driven; Right_jaw_joint mimics Left) ──────
   Left_jaw_joint:
-    has_velocity_limits: true
-    max_velocity: 10.0
-    has_acceleration_limits: false
-    max_acceleration: 0
-  Right_jaw_joint:
     has_velocity_limits: true
     max_velocity: 10.0
     has_acceleration_limits: false

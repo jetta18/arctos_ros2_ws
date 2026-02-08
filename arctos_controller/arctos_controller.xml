@@ -26,3 +26,12 @@ Source of this file are templates in
     </description>
   </class>
 </library>
+
+<library path="arctos_gripper_controller">
+  <class name="arctos_controller/ArctosGripperController"
+         type="arctos_controller::ArctosGripperController" base_class_type="controller_interface::ControllerInterface">
+    <description>
+      ArctosGripperController: GripperCommand controller for the DS3225MG servo-driven parallel gripper.
+    </description>
+  </class>
+</library>

@@ -147,6 +147,7 @@ bool STM32Protocol::read_state(StateResponse & state_out)
     uint16_t traj_points_loaded;
     uint16_t traj_current_segment;
     uint16_t traj_total_segments;
+    uint16_t servo_pulse_us;
   };
 
   if (payload_len < sizeof(RawState))
@@ -167,6 +168,7 @@ bool STM32Protocol::read_state(StateResponse & state_out)
   state_out.traj_points_loaded = raw.traj_points_loaded;
   state_out.traj_current_segment = raw.traj_current_segment;
   state_out.traj_total_segments = raw.traj_total_segments;
+  state_out.servo_pulse_us = raw.servo_pulse_us;
 
   return true;
 }
@@ -230,6 +232,21 @@ bool STM32Protocol::trajectory_execute(uint32_t trajectory_id)
 bool STM32Protocol::trajectory_cancel()
 {
   return send_and_expect_ok(ProtocolConstants::CMD_TRAJ_CANCEL, nullptr, 0);
+}
+
+bool STM32Protocol::set_servo(uint16_t pulse_us, uint16_t duration_ms)
+{
+  struct __attribute__((packed))
+  {
+    uint16_t pulse_us;
+    uint16_t duration_ms;
+  } payload;
+
+  payload.pulse_us = pulse_us;
+  payload.duration_ms = duration_ms;
+
+  return send_and_expect_ok(
+    ProtocolConstants::CMD_SET_SERVO, &payload, sizeof(payload));
 }
 
 }  // namespace utils
