@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<!-- Entry point for Arctos v2 (trajectory-based STM32 firmware) -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="arctos">
+
+  <!-- Macro libraries (shared with v1) -->
+  <xacro:include filename="$(find arctos_description)/urdf/macros/materials.xacro"/>
+  <xacro:include filename="$(find arctos_description)/urdf/macros/link_macro.xacro"/>
+  <xacro:include filename="$(find arctos_description)/urdf/macros/joint_macro.xacro"/>
+
+  <!-- Robot sub-assemblies (shared with v1) -->
+  <xacro:include filename="$(find arctos_description)/urdf/parts/arm_links.xacro"/>
+  <xacro:include filename="$(find arctos_description)/urdf/parts/arm_joints.xacro"/>
+  <xacro:include filename="$(find arctos_description)/urdf/parts/gripper.xacro"/>
+
+  <!-- ros2_control v2 hardware definition -->
+  <xacro:include filename="$(find arctos_description)/urdf/hardware/ros2_control_v2.xacro"/>
+
+  <xacro:arctos_ros2_control_v2 name="arctos_interface"/>
+
+</robot>

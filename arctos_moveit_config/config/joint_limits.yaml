@@ -1,46 +1,97 @@
-# joint_limits.yaml allows the dynamics properties specified in the URDF to be overwritten or augmented as needed
+# joint_limits.yaml — Arctos v2 step engine limits
+#
+# STM32 step engine parameters (step_engine.h):
+#   STEP_ENGINE_TICK_HZ      = 300,000 Hz (TIM2 ISR)
+#   STEP_ENGINE_MAX_VELOCITY = 75,000 steps/s
+#   STEP_ENGINE_MAX_ACCEL    = 200,000 steps/s²
+#
+# Motor base: 200 steps/rev × 16 microsteps = 3,200 steps/rev (before gear ratio)
+#
+# Safety factor = 1.2 applied to all limits to account for:
+#   - Step engine acceleration ramp lag (Hermite target vs actual velocity)
+#   - UDP round-trip latency and polling jitter
+#
+# Effective velocity at runtime = max_velocity × default_velocity_scaling_factor
+#                                              × RViz slider (default 1.0)
+# Keep default scaling moderate so the robot reliably finishes within MoveIt's
+# expected trajectory duration.
+default_velocity_scaling_factor: 0.8
+default_acceleration_scaling_factor: 0.6
 
-# Configured for Arctos stepper engine with 200kHz timer, 16x microstepping
-# Max step rate: 50,000 steps/s (GRBL_MIN_CYCLES_PER_STEP = 4 for 10µs pulse width)
-# Reduced from 100kHz to avoid resonance frequencies and ensure stable pulse detection
-# Calculations based on gear ratios from arctos_motor_config.h
-# 
-# Velocity scaling: Increased for faster movement
-# Acceleration scaling: Increased for quicker response
-default_velocity_scaling_factor: 0.9
-default_acceleration_scaling_factor: 0.8
-
-# Specific joint properties can be changed with the keys [max_position, min_position, max_velocity, max_acceleration]
-# Joint limits can be turned off with [has_velocity_limits, has_acceleration_limits]
 joint_limits:
-  # Wrist joints (NEMA17, Gear Ratio 36:1, 18,335 steps/rad)
-  # Resonance zone: ~30,000-50,000 steps/s - stay below with safety margin
+  # ── X_joint (base) ─────────────────────────────────────────────────
+  # Gear ratio: 13.5   →  steps/rev = 43,200   →  steps/rad = 6,875
+  # HW max vel:  75,000 / 6,875 = 10.91 rad/s  → /1.2 = 9.09 rad/s
+  # HW max acc: 200,000 / 6,875 = 29.09 rad/s² → /1.2 = 24.24 rad/s²
+  # Mechanical limit (resonance): ~18,000 steps/s → 2.62 rad/s
+  X_joint:
+    has_position_limits: true
+    min_position: -3.14
+    max_position: 3.14
+    has_velocity_limits: true
+    max_velocity: 2.18                 # 2.62/1.2 = 2.18 rad/s → 15,000 steps/s
+    has_acceleration_limits: true
+    max_acceleration: 4.36             # 5.24/1.2 = 4.36 rad/s² → 30,000 steps/s²
+
+  # ── Y_joint (shoulder) ─────────────────────────────────────────────
+  # Gear ratio: 150.0  →  steps/rev = 480,000  →  steps/rad = 76,394
+  # HW max vel:  75,000 / 76,394 = 0.982 rad/s → /1.2 = 0.818 rad/s
+  # HW max acc: 200,000 / 76,394 = 2.618 rad/s² → /1.2 = 2.182 rad/s²
+  Y_joint:
+    has_velocity_limits: true
+    max_velocity: 0.82                 # 0.982/1.2 = 0.82 rad/s → 62,603 steps/s
+    has_acceleration_limits: true
+    max_acceleration: 2.18             # 2.618/1.2 = 2.18 rad/s² → 166,539 steps/s²
+
+  # ── Z_joint (elbow) ────────────────────────────────────────────────
+  # Gear ratio: 150.0  →  steps/rev = 480,000  →  steps/rad = 76,394
+  # (same as Y_joint)
+  Z_joint:
+    has_velocity_limits: true
+    max_velocity: 0.82                 # 0.982/1.2 = 0.82 rad/s → 62,603 steps/s
+    has_acceleration_limits: true
+    max_acceleration: 2.18             # 2.618/1.2 = 2.18 rad/s² → 166,539 steps/s²
+
+  # ── A_joint (wrist 1) ──────────────────────────────────────────────
+  # Gear ratio: 48.0   →  steps/rev = 153,600  →  steps/rad = 24,446
+  # HW max vel:  75,000 / 24,446 = 3.068 rad/s → /1.2 = 2.56 rad/s
+  # HW max acc: 200,000 / 24,446 = 8.181 rad/s² → /1.2 = 6.82 rad/s²
   A_joint:
     has_position_limits: true
-    min_position: -1.40                # -80 degrees = -80° * π/180 ≈ -1.40 rad
-    max_position: 1.40                 # +80 degrees = +80° * π/180 ≈ +1.40 rad
+    min_position: -1.40
+    max_position: 1.40
     has_velocity_limits: true
-    max_velocity: 1.57                 # 1.57 rad/s = 28,800 steps/s (below resonance)
+    max_velocity: 2.56                 # HW-limited: 3.07/1.2 → 62,581 steps/s
     has_acceleration_limits: true
-    max_acceleration: 4.71             # 4.71 rad/s² = 86,400 steps/s²
+    max_acceleration: 6.82             # HW-limited: 8.18/1.2 → 166,724 steps/s²
+
+  # ── B_joint (wrist 2) ──────────────────────────────────────────────
+  # Gear ratio: 27.3375 → steps/rev = 87,480  →  steps/rad = 13,924
+  # HW max vel:  75,000 / 13,924 = 5.387 rad/s → /1.2 = 4.49 rad/s
+  # HW max acc: 200,000 / 13,924 = 14.37 rad/s² → /1.2 = 11.97 rad/s²
   B_joint:
     has_position_limits: true
-    min_position: -1.40                # -80 degrees = -80° * π/180 ≈ -1.40 rad
-    max_position: 1.40                 # +80 degrees = +80° * π/180 ≈ +1.40 rad
+    min_position: -1.40
+    max_position: 1.40
     has_velocity_limits: true
-    max_velocity: 1.57                 # 1.57 rad/s = 28,800 steps/s (below resonance)
+    max_velocity: 4.49                 # HW-limited: 5.39/1.2 → 62,519 steps/s
     has_acceleration_limits: true
-    max_acceleration: 4.71             # 4.71 rad/s²
+    max_acceleration: 11.97            # HW-limited: 14.37/1.2 → 166,586 steps/s²
+
+  # ── C_joint (wrist 3 / tool) ───────────────────────────────────────
+  # Gear ratio: 10.0   →  steps/rev = 32,000   →  steps/rad = 5,093
+  # HW max vel:  75,000 / 5,093 = 14.73 rad/s → /1.2 = 12.27 rad/s
+  # HW max acc: 200,000 / 5,093 = 39.27 rad/s² → /1.2 = 32.73 rad/s²
   C_joint:
     has_position_limits: true
-    min_position: -3.14                # -180 degrees = -π rad
-    max_position: 3.14                 # +180 degrees = +π rad
+    min_position: -3.14
+    max_position: 3.14
     has_velocity_limits: true
-    max_velocity: 2.36                 # 2.36 rad/s = 43,200 steps/s (tool rotation, slightly faster)
+    max_velocity: 12.27                # HW-limited: 14.73/1.2 → 62,491 steps/s
     has_acceleration_limits: true
-    max_acceleration: 6.28             # 6.28 rad/s²
-  
-  # Gripper joints (not connected to stepper engine)
+    max_acceleration: 32.73            # HW-limited: 39.27/1.2 → 166,747 steps/s²
+
+  # ── Gripper joints (not connected to stepper engine) ───────────────
   Left_jaw_joint:
     has_velocity_limits: true
     max_velocity: 10.0
@@ -51,27 +102,3 @@ joint_limits:
     max_velocity: 10.0
     has_acceleration_limits: false
     max_acceleration: 0
-  
-  # Base joint (NEMA23, Gear Ratio 13.5:1, 6,875 steps/rad)
-  # Resonance zone: ~20,000-40,000 steps/s - stay below
-  X_joint:
-    has_position_limits: true
-    min_position: -3.14                # -180 degrees = -π rad
-    max_position: 3.14                 # +180 degrees = +π rad
-    has_velocity_limits: true
-    max_velocity: 2.62                 # 2.62 rad/s = 18,000 steps/s (below resonance)
-    has_acceleration_limits: true
-    max_acceleration: 5.24             # 5.24 rad/s² = 36,000 steps/s²
-  
-  # Shoulder and Elbow joints (NEMA23, Gear Ratio 150:1, 76,394 steps/rad)
-  # High gear ratio pushes resonance higher, 50kHz limit is safe
-  Y_joint:
-    has_velocity_limits: true
-    max_velocity: 1.0                  # 1.0 rad/s = 76,394 steps/s (faster movement)
-    has_acceleration_limits: true
-    max_acceleration: 3.14             # 3.14 rad/s² = 240,000 steps/s²
-  Z_joint:
-    has_velocity_limits: true
-    max_velocity: 1.0                  # 1.0 rad/s = 76,394 steps/s (faster movement)
-    has_acceleration_limits: true
-    max_acceleration: 3.14             # 3.14 rad/s²

@@ -1,8 +1,17 @@
 <?xml version="1.0"?>
-<library path="arctos_stm32_stepper_interface">
-  <class name="arctos_hardware_interface/STM32StepperInterface"
-         type="arctos_hardware_interface::STM32StepperInterface"
-         base_class_type="hardware_interface::SystemInterface">
-    <description>STM32-based stepper motor hardware interface for ROS 2 Control</description>
-  </class>
-</library>
+<class_libraries>
+  <library path="arctos_stm32_stepper_interface">
+    <class name="arctos_hardware_interface/STM32StepperInterface"
+           type="arctos_hardware_interface::STM32StepperInterface"
+           base_class_type="hardware_interface::SystemInterface">
+      <description>STM32-based stepper motor hardware interface for ROS 2 Control (legacy v1)</description>
+    </class>
+  </library>
+  <library path="arctos_stm32_trajectory_interface">
+    <class name="arctos_hardware_interface/STM32TrajectoryInterface"
+           type="arctos_hardware_interface::STM32TrajectoryInterface"
+           base_class_type="hardware_interface::SystemInterface">
+      <description>STM32-based trajectory hardware interface for ROS 2 Control (v2)</description>
+    </class>
+  </library>
+</class_libraries>

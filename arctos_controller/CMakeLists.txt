@@ -13,9 +13,7 @@ find_package(rclcpp_action REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(control_msgs REQUIRED)
 find_package(trajectory_msgs REQUIRED)
-# uncomment the following section in order to fill in
-# further dependencies manually.
-# find_package(<dependency> REQUIRED)
+find_package(arctos_hardware_interface REQUIRED)
 
 include_directories(include)
 
@@ -30,6 +28,7 @@ ament_target_dependencies(arctos_segment_controller
   pluginlib
   control_msgs
   trajectory_msgs
+  arctos_hardware_interface
 )
 
 pluginlib_export_plugin_description_file(controller_interface arctos_controller.xml)
@@ -50,7 +49,7 @@ install(FILES arctos_controller.xml
 
 ament_export_include_directories(include)
 ament_export_libraries(arctos_segment_controller)
-ament_export_dependencies(controller_interface rclcpp rclcpp_action pluginlib control_msgs trajectory_msgs)
+ament_export_dependencies(controller_interface rclcpp rclcpp_action pluginlib control_msgs trajectory_msgs arctos_hardware_interface)
 
 if(BUILD_TESTING)
 endif()

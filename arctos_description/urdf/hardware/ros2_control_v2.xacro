@@ -1,0 +1,61 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="arctos">
+
+  <xacro:macro name="arctos_ros2_control_v2" params="name">
+    <ros2_control name="${name}" type="system">
+
+      <hardware>
+        <plugin>arctos_hardware_interface/STM32TrajectoryInterface</plugin>
+        <param name="stm32_host">192.168.178.159</param>
+        <param name="stm32_port">8888</param>
+        <!-- Motor configuration parameters -->
+        <!-- X_joint -->
+        <param name="motors.X_joint.gear_ratio">13.5</param>
+        <param name="motors.X_joint.inverted">false</param>
+        <!-- Y_joint -->
+        <param name="motors.Y_joint.gear_ratio">150.0</param>
+        <param name="motors.Y_joint.inverted">false</param>
+        <!-- Z_joint -->
+        <param name="motors.Z_joint.gear_ratio">150.0</param>
+        <param name="motors.Z_joint.inverted">false</param>
+        <!-- A_joint -->
+        <param name="motors.A_joint.gear_ratio">48.0</param>
+        <param name="motors.A_joint.inverted">true</param>
+        <!-- B_joint -->
+        <param name="motors.B_joint.gear_ratio">27.3375</param>
+        <param name="motors.B_joint.inverted">false</param>
+        <!-- C_joint -->
+        <param name="motors.C_joint.gear_ratio">10.0</param>
+        <param name="motors.C_joint.inverted">true</param>
+      </hardware>
+
+      <!-- State interfaces only (no command interfaces needed for v2) -->
+      <joint name="X_joint">
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+      <joint name="Y_joint">
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+      <joint name="Z_joint">
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+      <joint name="A_joint">
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+      <joint name="B_joint">
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+      <joint name="C_joint">
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+
+    </ros2_control>
+  </xacro:macro>
+
+</robot>
