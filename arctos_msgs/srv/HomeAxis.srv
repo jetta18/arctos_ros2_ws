@@ -1,0 +1,12 @@
+# Start or stop homing for a single axis.
+# axis: 0=X, 1=Y, 2=Z, 3=A, 4=B, 5=C
+# direction: 0=MIN, 1=MAX
+# velocity: homing velocity in rad/s (converted to steps/s by bridge)
+# Set start=false to stop homing.
+uint8 axis
+uint8 direction
+float64 velocity
+bool start
+---
+bool success
+string message

@@ -1,0 +1,4 @@
+# Emergency stop: ramp all axes to zero velocity.
+---
+bool success
+string message

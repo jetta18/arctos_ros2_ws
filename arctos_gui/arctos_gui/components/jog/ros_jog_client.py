@@ -30,6 +30,7 @@ class ArctosRosJogClient(JogClient):
     """ROS 2-based jog client using FollowJointTrajectory action."""
 
     def __init__(self, node_name: str = "arctos_jog_client") -> None:
+        """Initialize the instance."""
         self._node_name = str(node_name)
 
         self.joint_names = [
@@ -70,9 +71,11 @@ class ArctosRosJogClient(JogClient):
         self._stop_ros()
 
     def is_connected(self) -> bool:
+        """Return True when the backend connection is established."""
         return self._connected
 
     def get_current_position(self, axis_index: int) -> float:
+        """Return the current position."""
         if axis_index < 0 or axis_index >= len(self._current_positions):
             raise ValueError(f"Invalid axis_index {axis_index}")
 
@@ -124,6 +127,7 @@ class ArctosRosJogClient(JogClient):
         self._action_client.send_goal_async(goal)
 
     def _start_ros(self) -> None:
+        """Start the ros."""
         if not rclpy.ok():
             rclpy.init()
 
@@ -150,6 +154,7 @@ class ArctosRosJogClient(JogClient):
         self._connected = True
 
     def _stop_ros(self) -> None:
+        """Stop the ros."""
         self._connected = False
 
         if self._ros_executor is not None:
@@ -173,6 +178,7 @@ class ArctosRosJogClient(JogClient):
         self._action_client = None
 
     def _spin(self) -> None:
+        """Spin the ROS executor loop."""
         executor = self._ros_executor
         if executor is None:
             return
@@ -183,6 +189,7 @@ class ArctosRosJogClient(JogClient):
             _LOGGER.exception("ROS executor spin failed")
 
     def _joint_state_callback(self, msg: JointState) -> None:
+        """Perform joint state callback."""
         name_to_pos = dict(zip(msg.name, msg.position))
         with self._state_lock:
             for i, name in enumerate(self.joint_names):

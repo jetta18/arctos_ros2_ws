@@ -1,0 +1,7 @@
+<launch>
+  <arg name="config_file" default="$(find-pkg-share arctos_bridge)/config/arctos_bridge.yaml"/>
+
+  <node pkg="arctos_bridge" exec="arctos_bridge_node" name="arctos_bridge_node" output="screen">
+    <param from="$(var config_file)"/>
+  </node>
+</launch>

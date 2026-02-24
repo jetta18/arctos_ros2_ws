@@ -6,9 +6,7 @@
 
       <hardware>
         <plugin>arctos_hardware_interface/STM32HardwareInterface</plugin>
-        <param name="stm32_host">192.168.178.159</param>
-        <param name="stm32_port">8888</param>
-        <!-- Motor configuration parameters -->
+        <!-- Servo gripper parameters are read from hardware_parameters -->
         <!-- X_joint -->
         <param name="motors.X_joint.gear_ratio">13.5</param>
         <param name="motors.X_joint.inverted">false</param>
@@ -31,26 +29,32 @@
 
       <!-- State interfaces (trajectory upload is handled out-of-band by the controller) -->
       <joint name="X_joint">
+        <command_interface name="position"/>
         <state_interface name="position"/>
         <state_interface name="velocity"/>
       </joint>
       <joint name="Y_joint">
+        <command_interface name="position"/>
         <state_interface name="position"/>
         <state_interface name="velocity"/>
       </joint>
       <joint name="Z_joint">
+        <command_interface name="position"/>
         <state_interface name="position"/>
         <state_interface name="velocity"/>
       </joint>
       <joint name="A_joint">
+        <command_interface name="position"/>
         <state_interface name="position"/>
         <state_interface name="velocity"/>
       </joint>
       <joint name="B_joint">
+        <command_interface name="position"/>
         <state_interface name="position"/>
         <state_interface name="velocity"/>
       </joint>
       <joint name="C_joint">
+        <command_interface name="position"/>
         <state_interface name="position"/>
         <state_interface name="velocity"/>
       </joint>

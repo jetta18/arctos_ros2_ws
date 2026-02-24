@@ -1,0 +1,10 @@
+# Jog a single axis by a relative distance in steps.
+# axis: 0=X, 1=Y, 2=Z, 3=A, 4=B, 5=C
+# distance_steps: signed relative distance in steps
+# velocity: jog velocity in rad/s (converted to steps/s by bridge)
+uint8 axis
+int32 distance_steps
+float64 velocity
+---
+bool success
+string message

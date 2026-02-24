@@ -5,6 +5,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "hardware_interface/system_interface.hpp"
@@ -13,23 +14,20 @@
 #include "hardware_interface/types/hardware_interface_return_values.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/state.hpp"
-
-#include "arctos_hardware_interface/utils/unit_conversion.hpp"
-#include "arctos_hardware_interface/utils/stm32_protocol.hpp"
-#include "arctos_hardware_interface/utils/socket_manager.hpp"
+#include "arctos_msgs/msg/arctos_state.hpp"
+#include "std_msgs/msg/float64_multi_array.hpp"
 
 namespace arctos_hardware_interface
 {
 
 /**
- * Hardware interface for the Arctos STM32 firmware.
+ * Hardware interface for the Arctos robot arm.
  *
- * Owns the single UDP connection to the STM32. The controller obtains
- * a pointer to this interface (via a custom command interface) and calls
- * trajectory methods through lock_protocol() / unlock_protocol().
+ * Thin adapter that reads state from the arctos_bridge node's
+ * /arctos/state topic and forwards position commands via
+ * /arctos/cmd_positions and /arctos/cmd_servo topics.
  *
- * read() polls GET_STATE unless the protocol is locked by the controller.
- * write() is a no-op.
+ * All direct STM32 communication is handled by the arctos_bridge node.
  */
 class STM32HardwareInterface : public hardware_interface::SystemInterface
 {
@@ -67,41 +65,38 @@ public:
   hardware_interface::return_type write(
     const rclcpp::Time & time, const rclcpp::Duration & period) override;
 
-  /**
-   * Lock the protocol for exclusive use by the controller.
-   * While locked, read() skips GET_STATE to avoid cross-talk.
-   */
-  void lock_protocol() { protocol_mutex_.lock(); }
-  void unlock_protocol() { protocol_mutex_.unlock(); }
-
-  utils::STM32Protocol * get_protocol() { return protocol_.get(); }
-  utils::UnitConverter * get_unit_converter() { return unit_converter_.get(); }
-
 private:
-  void perform_lifecycle_cleanup();
-  void log_throttled(const std::string & message,
-                     std::chrono::steady_clock::time_point & last_log_time);
+  void start_ros_interface();
+  void stop_ros_interface();
+  void state_callback(const arctos_msgs::msg::ArctosState::SharedPtr msg);
 
-  std::unique_ptr<utils::UnitConverter> unit_converter_;
-  std::unique_ptr<utils::STM32Protocol> protocol_;
-  std::unique_ptr<utils::STM32SocketManager> socket_manager_;
-  std::mutex protocol_mutex_;
+  /* Internal ROS node for topic communication with the bridge */
+  rclcpp::Node::SharedPtr ros_node_;
+  rclcpp::executors::SingleThreadedExecutor::SharedPtr executor_;
+  std::thread executor_thread_;
 
-  bool reconnect_enabled_;
-  std::atomic_bool shutdown_requested_;
+  /* Bridge topic interfaces */
+  rclcpp::Subscription<arctos_msgs::msg::ArctosState>::SharedPtr state_sub_;
+  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr cmd_pos_pub_;
+  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr cmd_servo_pub_;
 
+  /* State interfaces (read by controller_manager) */
   std::vector<double> hw_states_positions_;
   std::vector<double> hw_states_velocities_;
   double hw_system_state_;
 
-  /* Stores a pointer to `this` so the controller can retrieve it. */
-  double hw_interface_ptr_value_;
+  /* State from bridge (written by callback, read by read()) */
+  std::mutex state_mutex_;
+  std::vector<double> bridge_positions_;
+  std::vector<double> bridge_velocities_;
+  double bridge_system_state_;
+  double bridge_servo_pulse_us_;
+  bool state_received_;
 
-  std::vector<double> gear_ratios_;
-  std::vector<double> steps_per_revolution_;
-  std::vector<bool> joint_inversions_;
-  static constexpr int STEPS_PER_REV = 200;
-  static constexpr int MICROSTEPS = 16;
+  /* Arm position command interfaces (written by JointGroupPositionController) */
+  std::vector<double> hw_cmd_positions_;
+  std::vector<double> hw_cmd_positions_prev_;
+  static constexpr double POSITION_CMD_DEADBAND_RAD = 1e-5;
 
   /* Gripper (servo-driven, optional) */
   bool gripper_enabled_;
@@ -113,8 +108,6 @@ private:
   uint16_t servo_open_pulse_us_;
   double gripper_max_opening_m_;
   double servo_speed_m_per_s_;
-
-  static constexpr int LOG_THROTTLE_MS = 1000;
 
   rclcpp::Logger logger_;
 };

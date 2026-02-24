@@ -1,0 +1,54 @@
+arctos_bridge_node:
+  ros__parameters:
+    # STM32 connection
+    stm32_host: "192.168.178.159"
+    stm32_command_port: 8888
+    stm32_broadcast_port: 8889
+    broadcast_listen_port: 9000
+    broadcast_rate_hz: 100
+
+    # Protocol
+    protocol_version: 2
+    socket_timeout_s: 2.0
+
+    # Joint configuration (order must match STM32 axis indices 0-5)
+    joint_names:
+      - "X_joint"
+      - "Y_joint"
+      - "Z_joint"
+      - "A_joint"
+      - "B_joint"
+      - "C_joint"
+
+    # Motor parameters: steps_per_revolution = steps_per_rev * microsteps * gear_ratio
+    steps_per_rev: 200
+    microsteps: 16
+
+    # Per-joint gear ratios (same order as joint_names)
+    gear_ratios:
+      - 13.5      # X_joint
+      - 150.0     # Y_joint
+      - 150.0     # Z_joint
+      - 48.0      # A_joint
+      - 27.3375   # B_joint
+      - 10.0      # C_joint
+
+    # Per-joint inversion flags (true = negate direction)
+    joint_inversions:
+      - false      # X_joint
+      - false      # Y_joint
+      - false      # Z_joint
+      - true       # A_joint
+      - false      # B_joint
+      - true       # C_joint
+
+    # Servo mode (streaming position commands) velocity/acceleration in steps/s
+    servo_move_velocity: 50000.0
+    servo_move_accel: 150000.0
+
+    # Connection monitoring
+    connection_timeout_s: 3.0
+    reconnect_initial_delay_s: 0.5
+    reconnect_max_delay_s: 5.0
+    reconnect_backoff_multiplier: 1.5
+    auto_reconnect_enabled: true

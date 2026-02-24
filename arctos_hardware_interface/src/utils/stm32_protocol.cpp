@@ -173,6 +173,25 @@ bool STM32Protocol::read_state(StateResponse & state_out)
   return true;
 }
 
+bool STM32Protocol::move_all(
+  const float * positions, float max_velocity, float acceleration)
+{
+  struct __attribute__((packed))
+  {
+    float positions[ProtocolConstants::MAX_JOINTS];
+    float max_velocity;
+    float acceleration;
+  } payload;
+
+  std::memcpy(payload.positions, positions,
+              sizeof(float) * ProtocolConstants::MAX_JOINTS);
+  payload.max_velocity = max_velocity;
+  payload.acceleration = acceleration;
+
+  return send_and_expect_ok(
+    ProtocolConstants::CMD_MOVE_ALL, &payload, sizeof(payload));
+}
+
 bool STM32Protocol::trajectory_begin(uint32_t trajectory_id, uint16_t num_points)
 {
   struct __attribute__((packed))

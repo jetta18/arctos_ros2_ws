@@ -19,6 +19,7 @@ import os
 def generate_launch_description():
     arctos_description_dir = get_package_share_directory('arctos_description')
     arctos_moveit_dir = get_package_share_directory('arctos_moveit_config')
+    arctos_bridge_dir = get_package_share_directory('arctos_bridge')
 
     robot_description_content = Command(
         [
@@ -41,6 +42,16 @@ def generate_launch_description():
         executable="robot_state_publisher",
         output="both",
         parameters=[robot_description],
+    )
+
+    arctos_bridge_config = os.path.join(arctos_bridge_dir, 'config', 'arctos_bridge.yaml')
+
+    arctos_bridge_node = Node(
+        package="arctos_bridge",
+        executable="arctos_bridge_node",
+        name="arctos_bridge_node",
+        parameters=[arctos_bridge_config],
+        output="screen",
     )
 
     control_node = Node(
@@ -69,6 +80,12 @@ def generate_launch_description():
         package="controller_manager",
         executable="spawner",
         arguments=["arctos_controller", "--controller-manager", "/controller_manager"],
+    )
+
+    servo_controller_spawner = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=["arctos_servo_controller", "--inactive", "--controller-manager", "/controller_manager"],
     )
 
     gripper_controller_spawner = Node(
@@ -101,9 +118,16 @@ def generate_launch_description():
         )
     )
 
-    delay_gripper_controller_spawner = RegisterEventHandler(
+    delay_servo_controller_spawner = RegisterEventHandler(
         event_handler=OnProcessExit(
             target_action=robot_controller_spawner,
+            on_exit=[servo_controller_spawner],
+        )
+    )
+
+    delay_gripper_controller_spawner = RegisterEventHandler(
+        event_handler=OnProcessExit(
+            target_action=servo_controller_spawner,
             on_exit=[gripper_controller_spawner],
         )
     )
@@ -125,16 +149,23 @@ def generate_launch_description():
         )
     )
 
+    delayed_control_node = TimerAction(
+        period=2.0,
+        actions=[control_node],
+    )
+
     return LaunchDescription([
         use_gripper_arg,
         LogInfo(msg=["Launching Arctos Robot System..."]),
 
+        arctos_bridge_node,
         robot_state_pub_node,
-        control_node,
+        delayed_control_node,
         shutdown_on_control_exit,
 
         delayed_joint_state_broadcaster,
         delay_robot_controller_spawner,
+        delay_servo_controller_spawner,
         delay_gripper_controller_spawner,
 
         delay_rviz_and_moveit_launch,

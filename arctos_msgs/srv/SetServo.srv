@@ -1,0 +1,8 @@
+# Set the gripper servo position.
+# pulse_us: target pulse width (500-2500 us), 0 = disable
+# duration_ms: move duration, 0 = immediate
+uint16 pulse_us
+uint16 duration_ms
+---
+bool success
+string message

@@ -15,6 +15,7 @@ def generate_launch_description():
     # Paketpfade
     arctos_description_dir = get_package_share_directory('arctos_description')
     arctos_moveit_dir = get_package_share_directory('arctos_moveit_config')
+    arctos_bridge_dir = get_package_share_directory('arctos_bridge')
 
     # URDF via xacro generieren
     robot_description_content = Command(
@@ -72,7 +73,26 @@ def generate_launch_description():
         output="screen",
     )
 
-    # 5) Deine Arctos GUI Node
+    # 4.1) Servo Controller (inactive) spawnen
+    servo_controller_spawner = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=["arctos_servo_controller", "--inactive", "--controller-manager", "/controller_manager"],
+        output="screen",
+    )
+
+    # 5) Arctos Bridge Node
+    arctos_bridge_config = os.path.join(arctos_bridge_dir, 'config', 'arctos_bridge.yaml')
+
+    arctos_bridge_node = Node(
+        package='arctos_bridge',
+        executable='arctos_bridge_node',
+        name='arctos_bridge_node',
+        parameters=[arctos_bridge_config],
+        output='screen',
+    )
+
+    # 6) Arctos GUI Node
     arctos_gui_node = Node(
         package='arctos_gui',
         executable='arctos_gui',
@@ -80,11 +100,37 @@ def generate_launch_description():
         output='screen',
     )
 
-    # 6) MoveIt move_group (ohne RViz)
+    # 7) MoveIt move_group (ohne RViz)
     move_group_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([arctos_moveit_dir, "launch", "move_group.launch.py"])
         )
+    )
+
+    # 8) MoveIt Servo Node
+    from moveit_configs_utils import MoveItConfigsBuilder
+    import yaml
+
+    moveit_config = (
+        MoveItConfigsBuilder('arctos', package_name='arctos_moveit_config')
+        .to_moveit_configs()
+    )
+
+    servo_yaml_path = os.path.join(get_package_share_directory('arctos_servo'), 'config', 'arctos_servo_config.yaml')
+    with open(servo_yaml_path, 'r') as f:
+        servo_yaml = yaml.safe_load(f)
+
+    servo_node = Node(
+        package='moveit_servo',
+        executable='servo_node_main',
+        name='servo_node',
+        parameters=[
+            {'moveit_servo': servo_yaml},
+            moveit_config.robot_description,
+            moveit_config.robot_description_semantic,
+            moveit_config.robot_description_kinematics,
+        ],
+        output='screen',
     )
 
     # Zeitliche Staffelung:
@@ -104,15 +150,19 @@ def generate_launch_description():
         actions=[trajectory_controller_spawner],
     )
 
-    delayed_gui = TimerAction(
-        period=7.0,
-        actions=[arctos_gui_node],
+    delayed_servo_controller = TimerAction(
+        period=5.5,
+        actions=[servo_controller_spawner],
     )
 
-    # MoveIt starten vor GUI (damit Action Server verfügbar ist)
     delayed_moveit = TimerAction(
         period=6.0,
-        actions=[move_group_launch],
+        actions=[move_group_launch, servo_node],
+    )
+
+    delayed_gui = TimerAction(
+        period=8.0,
+        actions=[arctos_gui_node],
     )
 
     shutdown_on_control_exit = RegisterEventHandler(
@@ -129,6 +179,7 @@ def generate_launch_description():
         LogInfo(msg=["Launching Arctos GUI with MoveIt..."]),
 
         # Robot Description + ros2_control_node
+        arctos_bridge_node,
         robot_state_pub_node,
         control_node,
 
@@ -137,6 +188,7 @@ def generate_launch_description():
         # Controller-Spawner (zeitlich verzögert)
         delayed_joint_state_broadcaster,
         delayed_trajectory_controller,
+        delayed_servo_controller,
 
         # MoveIt (vor GUI damit Action Server bereit ist)
         delayed_moveit,

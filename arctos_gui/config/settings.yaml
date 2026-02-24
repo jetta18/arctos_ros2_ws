@@ -1,0 +1,87 @@
+can:
+  bitrate: 500K
+  channel: /dev/ttyACM1
+homing:
+  A:
+    direction: 0
+    home_direction: 0
+    offset_steps: 15217
+    velocity_rad_s: 0.5
+  B:
+    direction: 0
+    offset_steps: 0
+    velocity_rad_s: 0.5
+  C:
+    direction: 0
+    offset_steps: 0
+    velocity_rad_s: 0.5
+  X:
+    direction: 0
+    offset_steps: 0
+    velocity_rad_s: 0.05
+  Y:
+    direction: 0
+    offset_steps: 29251
+    velocity_rad_s: 0.05
+  Z:
+    direction: 1
+    home_direction: 1
+    offset_steps: -66105
+    velocity_rad_s: 0.15000000000000002
+  full_velocity_rad_s: 0.05
+  sequence:
+  - 0
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  sequence_index: 1
+motor:
+  A:
+    can_bitrate: 500K
+    can_id: 4
+    hold_current_pct: 50%
+    homing_speed: '60'
+    microsteps: '16'
+    subdiv_interpolation: true
+    work_mode: SR_vFOC
+  B:
+    can_bitrate: 500K
+    can_id: 5
+    hold_current_pct: 50%
+    homing_speed: '60'
+    microsteps: '16'
+    subdiv_interpolation: true
+    work_mode: SR_vFOC
+  C:
+    can_bitrate: 500K
+    can_id: 6
+    hold_current_pct: 50%
+    homing_speed: '60'
+    microsteps: '16'
+    subdiv_interpolation: true
+    work_mode: SR_vFOC
+  X:
+    can_bitrate: 500K
+    hold_current_pct: 50%
+    homing_speed: '60'
+    microsteps: '16'
+    subdiv_interpolation: true
+    work_mode: SR_vFOC
+  Y:
+    can_bitrate: 500K
+    can_id: 2
+    hold_current_pct: 50%
+    homing_speed: '60'
+    microsteps: '16'
+    subdiv_interpolation: true
+    work_mode: SR_vFOC
+  Z:
+    can_bitrate: 500K
+    can_id: 3
+    hold_current_pct: 50%
+    homing_speed: '60'
+    microsteps: '16'
+    subdiv_interpolation: true
+    work_mode: SR_vFOC

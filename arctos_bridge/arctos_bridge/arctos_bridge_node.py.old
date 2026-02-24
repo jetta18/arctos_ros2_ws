@@ -1,0 +1,527 @@
+"""Arctos Bridge Node — communication bridge between STM32 and ROS2.
+
+Subscribes to STM32 state broadcasts (UDP 8889) and publishes:
+  - /arctos/state       (arctos_msgs/ArctosState)
+  - /arctos/endstops    (arctos_msgs/ArctosEndstops)
+
+Subscribes to command topics from the hardware interface:
+  - /arctos/cmd_positions  (std_msgs/Float64MultiArray)
+  - /arctos/cmd_servo      (std_msgs/Float64MultiArray)
+
+Provides services:
+  - /arctos/ping        (arctos_msgs/Ping)
+  - /arctos/stop        (arctos_msgs/Stop)
+  - /arctos/set_servo   (arctos_msgs/SetServo)
+  - /arctos/home_axis          (arctos_msgs/HomeAxis)
+  - /arctos/home_to_position   (arctos_msgs/HomeToPosition)
+  - /arctos/set_home_offset    (arctos_msgs/SetHomeOffset)
+  - /arctos/get_home_offset    (arctos_msgs/GetHomeOffset)
+  - /arctos/jog_axis           (arctos_msgs/JogAxis)
+
+Provides actions:
+  - /arctos_controller/follow_joint_trajectory (control_msgs/FollowJointTrajectory)
+"""
+
+import socket
+import threading
+import time
+
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import Float64MultiArray
+
+from arctos_msgs.msg import ArctosState, ArctosEndstops
+from arctos_msgs.srv import (
+    Ping, Stop, SetServo, HomeAxis,
+    HomeToPosition, SetHomeOffset, GetHomeOffset, JogAxis,
+    SetAxisPosition,
+)
+
+from arctos_bridge.stm32_protocol import (
+    STM32CommandClient,
+    parse_broadcast,
+    triggered_endstop_names,
+)
+from arctos_bridge.unit_conversion import UnitConverter
+from arctos_bridge.trajectory_action_server import TrajectoryActionServer
+
+
+class ArctossBridgeNode(Node):
+
+    def __init__(self):
+        super().__init__("arctos_bridge_node")
+
+        self._last_system_state = 0
+        self._state_lock = threading.Lock()
+        self._trajectory_active = False
+        self._trajectory_active_lock = threading.Lock()
+
+        self._declare_parameters()
+        self._load_parameters()
+        self._init_unit_converter()
+        self._init_publishers()
+        self._init_subscribers()
+        self._init_services()
+        self._init_command_client()
+        self._init_trajectory_action()
+        self._init_broadcast_receiver()
+
+    # ------------------------------------------------------------------ #
+    # Parameter declaration and loading                                   #
+    # ------------------------------------------------------------------ #
+
+    def _declare_parameters(self):
+        self.declare_parameter("stm32_host", "192.168.178.159")
+        self.declare_parameter("stm32_command_port", 8888)
+        self.declare_parameter("stm32_broadcast_port", 8889)
+        self.declare_parameter("broadcast_listen_port", 9000)
+        self.declare_parameter("broadcast_rate_hz", 100)
+        self.declare_parameter("protocol_version", 2)
+        self.declare_parameter("socket_timeout_s", 2.0)
+        self.declare_parameter("steps_per_rev", 200)
+        self.declare_parameter("microsteps", 16)
+        self.declare_parameter(
+            "joint_names",
+            ["X_joint", "Y_joint", "Z_joint", "A_joint", "B_joint", "C_joint"],
+        )
+        self.declare_parameter(
+            "gear_ratios", [13.5, 150.0, 150.0, 48.0, 27.3375, 10.0]
+        )
+        self.declare_parameter(
+            "joint_inversions", [False, False, False, True, False, True]
+        )
+        self.declare_parameter("servo_move_velocity", 50000.0)
+        self.declare_parameter("servo_move_accel", 150000.0)
+
+    def _load_parameters(self):
+        self._stm32_host = self.get_parameter("stm32_host").value
+        self._command_port = self.get_parameter("stm32_command_port").value
+        self._broadcast_port = self.get_parameter("stm32_broadcast_port").value
+        self._listen_port = self.get_parameter("broadcast_listen_port").value
+        self._broadcast_rate_hz = self.get_parameter("broadcast_rate_hz").value
+        self._socket_timeout = self.get_parameter("socket_timeout_s").value
+        self._steps_per_rev = self.get_parameter("steps_per_rev").value
+        self._microsteps = self.get_parameter("microsteps").value
+        self._joint_names = self.get_parameter("joint_names").value
+        self._gear_ratios = self.get_parameter("gear_ratios").value
+        self._joint_inversions = self.get_parameter("joint_inversions").value
+        self._num_joints = len(self._joint_names)
+        self._servo_move_velocity = self.get_parameter("servo_move_velocity").value
+        self._servo_move_accel = self.get_parameter("servo_move_accel").value
+
+    def _init_unit_converter(self):
+        self._converter = UnitConverter(
+            self._steps_per_rev,
+            self._microsteps,
+            self._gear_ratios,
+            self._joint_inversions,
+        )
+
+    # ------------------------------------------------------------------ #
+    # Publishers                                                          #
+    # ------------------------------------------------------------------ #
+
+    def _init_publishers(self):
+        self._state_pub = self.create_publisher(ArctosState, "/arctos/state", 10)
+        self._endstop_pub = self.create_publisher(
+            ArctosEndstops, "/arctos/endstops", 10
+        )
+
+    # ------------------------------------------------------------------ #
+    # Subscribers (command topics from HW interface / servo controller)    #
+    # ------------------------------------------------------------------ #
+
+    def _init_subscribers(self):
+        self._cmd_pos_sub = self.create_subscription(
+            Float64MultiArray,
+            "/arctos/cmd_positions",
+            self._handle_cmd_positions,
+            10,
+        )
+        self._cmd_servo_sub = self.create_subscription(
+            Float64MultiArray,
+            "/arctos/cmd_servo",
+            self._handle_cmd_servo,
+            10,
+        )
+
+    def _handle_cmd_positions(self, msg: Float64MultiArray):
+        """Forward position commands (radians) to STM32 as CMD_MOVE_ALL."""
+        with self._trajectory_active_lock:
+            if self._trajectory_active:
+                return
+        if len(msg.data) != self._num_joints:
+            return
+        positions_steps = [0.0] * self._num_joints
+        for i in range(self._num_joints):
+            positions_steps[i] = self._converter.rad_to_steps(msg.data[i], i)
+        try:
+            self._cmd_client.move_all(
+                positions_steps, self._servo_move_velocity, self._servo_move_accel
+            )
+        except Exception as e:
+            self.get_logger().warn(f"CMD_MOVE_ALL failed: {e}")
+
+    def _handle_cmd_servo(self, msg: Float64MultiArray):
+        """Forward gripper servo command [pulse_us, duration_ms] to STM32."""
+        if len(msg.data) < 2:
+            return
+        pulse_us = int(msg.data[0])
+        duration_ms = int(msg.data[1])
+        try:
+            self._cmd_client.set_servo(pulse_us, duration_ms)
+        except Exception as e:
+            self.get_logger().warn(f"CMD_SET_SERVO failed: {e}")
+
+    # ------------------------------------------------------------------ #
+    # Services                                                            #
+    # ------------------------------------------------------------------ #
+
+    def _init_services(self):
+        self._ping_srv = self.create_service(Ping, "/arctos/ping", self._handle_ping)
+        self._stop_srv = self.create_service(Stop, "/arctos/stop", self._handle_stop)
+        self._servo_srv = self.create_service(
+            SetServo, "/arctos/set_servo", self._handle_set_servo
+        )
+        self._home_srv = self.create_service(
+            HomeAxis, "/arctos/home_axis", self._handle_home_axis
+        )
+        self._home_to_pos_srv = self.create_service(
+            HomeToPosition, "/arctos/home_to_position",
+            self._handle_home_to_position,
+        )
+        self._set_offset_srv = self.create_service(
+            SetHomeOffset, "/arctos/set_home_offset",
+            self._handle_set_home_offset,
+        )
+        self._get_offset_srv = self.create_service(
+            GetHomeOffset, "/arctos/get_home_offset",
+            self._handle_get_home_offset,
+        )
+        self._jog_axis_srv = self.create_service(
+            JogAxis, "/arctos/jog_axis",
+            self._handle_jog_axis,
+        )
+        self._set_axis_pos_srv = self.create_service(
+            SetAxisPosition, "/arctos/set_axis_position",
+            self._handle_set_axis_position,
+        )
+
+    def _handle_ping(self, request, response):
+        try:
+            t0 = time.monotonic()
+            success = self._cmd_client.ping()
+            dt = (time.monotonic() - t0) * 1000.0
+            response.success = success
+            response.round_trip_ms = dt
+        except Exception as e:
+            self.get_logger().error(f"Ping failed: {e}")
+            response.success = False
+            response.round_trip_ms = 0.0
+        return response
+
+    def _handle_stop(self, request, response):
+        try:
+            success, msg = self._cmd_client.stop()
+            response.success = success
+            response.message = msg
+        except Exception as e:
+            self.get_logger().error(f"Stop failed: {e}")
+            response.success = False
+            response.message = str(e)
+        return response
+
+    def _handle_set_servo(self, request, response):
+        try:
+            success, msg = self._cmd_client.set_servo(
+                request.pulse_us, request.duration_ms
+            )
+            response.success = success
+            response.message = msg
+        except Exception as e:
+            self.get_logger().error(f"SetServo failed: {e}")
+            response.success = False
+            response.message = str(e)
+        return response
+
+    def _handle_home_axis(self, request, response):
+        try:
+            if request.start:
+                velocity_steps = abs(
+                    self._converter.rad_per_sec_to_steps_per_sec(
+                        request.velocity, request.axis
+                    )
+                )
+                success, msg = self._cmd_client.home_start(
+                    request.axis, request.direction, velocity_steps
+                )
+            else:
+                success, msg = self._cmd_client.home_stop()
+            response.success = success
+            response.message = msg
+        except Exception as e:
+            self.get_logger().error(f"HomeAxis failed: {e}")
+            response.success = False
+            response.message = str(e)
+        return response
+
+    def _handle_home_to_position(self, request, response):
+        try:
+            velocity_steps = abs(
+                self._converter.rad_per_sec_to_steps_per_sec(
+                    request.velocity, request.axis
+                )
+            ) if request.velocity > 0.0 else 0.0
+            success, msg = self._cmd_client.home_to_position(
+                request.axis, velocity_steps, request.offset_steps
+            )
+            response.success = success
+            response.message = msg
+        except Exception as e:
+            self.get_logger().error(f"HomeToPosition failed: {e}")
+            response.success = False
+            response.message = str(e)
+        return response
+
+    def _handle_set_home_offset(self, request, response):
+        try:
+            success, msg = self._cmd_client.set_home_offset(
+                request.axis, request.direction, request.offset_steps
+            )
+            response.success = success
+            response.message = msg
+        except Exception as e:
+            self.get_logger().error(f"SetHomeOffset failed: {e}")
+            response.success = False
+            response.message = str(e)
+        return response
+
+    def _handle_get_home_offset(self, request, response):
+        try:
+            success, offset, msg = self._cmd_client.get_home_offset(
+                request.axis
+            )
+            response.success = success
+            response.offset_steps = offset
+            response.message = msg
+        except Exception as e:
+            self.get_logger().error(f"GetHomeOffset failed: {e}")
+            response.success = False
+            response.offset_steps = 0
+            response.message = str(e)
+        return response
+
+    def _handle_jog_axis(self, request, response):
+        try:
+            velocity_steps = abs(
+                self._converter.rad_per_sec_to_steps_per_sec(
+                    request.velocity, request.axis
+                )
+            )
+            accel_steps = velocity_steps * 2.0
+            success, msg = self._cmd_client.jog_axis(
+                request.axis, request.distance_steps,
+                velocity_steps, accel_steps,
+            )
+            response.success = success
+            response.message = msg
+        except Exception as e:
+            self.get_logger().error(f"JogAxis failed: {e}")
+            response.success = False
+            response.message = str(e)
+        return response
+
+    def _handle_set_axis_position(self, request, response):
+        """Handle SetAxisPosition service request."""
+        try:
+            success, msg = self._cmd_client.set_axis_position(
+                request.axis, request.position
+            )
+            response.success = success
+            response.message = msg
+        except Exception as e:
+            self.get_logger().error(f"SetAxisPosition failed: {e}")
+            response.success = False
+            response.message = str(e)
+        return response
+
+    # ------------------------------------------------------------------ #
+    # Command client                                                      #
+    # ------------------------------------------------------------------ #
+
+    def _init_command_client(self):
+        self._cmd_client = STM32CommandClient(
+            self._stm32_host, self._command_port, self._socket_timeout
+        )
+        self._cmd_client.connect()
+        self.get_logger().info(
+            f"Command client connected to {self._stm32_host}:{self._command_port}"
+        )
+
+    @property
+    def command_client(self) -> STM32CommandClient:
+        """Expose the command client for Phase 4 extensions."""
+        return self._cmd_client
+
+    @property
+    def converter(self) -> UnitConverter:
+        return self._converter
+
+    # ------------------------------------------------------------------ #
+    # Trajectory action server                                            #
+    # ------------------------------------------------------------------ #
+
+    def _init_trajectory_action(self):
+        self._traj_action = TrajectoryActionServer(
+            node=self,
+            cmd_client=self._cmd_client,
+            converter=self._converter,
+            joint_names=list(self._joint_names),
+            get_system_state_fn=self._get_system_state,
+        )
+        self.get_logger().info("Trajectory action server ready")
+
+    def _get_system_state(self) -> int:
+        with self._state_lock:
+            return self._last_system_state
+
+    # ------------------------------------------------------------------ #
+    # Broadcast receiver                                                  #
+    # ------------------------------------------------------------------ #
+
+    def _init_broadcast_receiver(self):
+        self._listen_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._listen_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self._listen_sock.bind(("0.0.0.0", self._listen_port))
+        self._listen_sock.settimeout(1.0)
+
+        self._rx_thread_running = True
+        self._rx_thread = threading.Thread(
+            target=self._broadcast_rx_loop, daemon=True
+        )
+        self._rx_thread.start()
+
+        self._subscribe_to_stm32()
+
+    def _subscribe_to_stm32(self):
+        try:
+            success = self._cmd_client.subscribe(
+                self._listen_port, self._broadcast_rate_hz
+            )
+            if success:
+                self.get_logger().info(
+                    f"Subscribed to state broadcasts "
+                    f"(port={self._listen_port}, rate={self._broadcast_rate_hz} Hz)"
+                )
+            else:
+                self.get_logger().error("Failed to subscribe to state broadcasts")
+        except Exception as e:
+            self.get_logger().error(f"Subscribe failed: {e}")
+
+    def _broadcast_rx_loop(self):
+        while self._rx_thread_running:
+            try:
+                data, _ = self._listen_sock.recvfrom(256)
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+
+            state = parse_broadcast(data)
+            if state is None:
+                continue
+
+            with self._state_lock:
+                self._last_system_state = state["system_state"]
+
+            self._publish_state(state)
+            self._publish_endstops(state)
+
+    # ------------------------------------------------------------------ #
+    # Publishing                                                          #
+    # ------------------------------------------------------------------ #
+
+    def _publish_state(self, state: dict):
+        msg = ArctosState()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = "base_link"
+
+        msg.positions = [
+            self._converter.steps_to_rad(state["positions"][i], i)
+            for i in range(self._num_joints)
+        ]
+        msg.velocities = [
+            self._converter.steps_per_sec_to_rad_per_sec(state["velocities"][i], i)
+            for i in range(self._num_joints)
+        ]
+        msg.positions_steps = [
+            float(state["positions"][i]) for i in range(self._num_joints)
+        ]
+
+        msg.system_state = state["system_state"]
+        msg.trajectory_id = state["trajectory_id"]
+        msg.traj_points_loaded = state["traj_points_loaded"]
+        msg.traj_current_segment = state["traj_current_segment"]
+        msg.traj_total_segments = state["traj_total_segments"]
+        msg.endstop_states = state["endstop_states"]
+        msg.servo_pulse_us = state["servo_pulse_us"]
+        msg.homing_active = bool(state["homing_active"])
+        msg.homing_axis = state["homing_axis"]
+        msg.homing_state = state["homing_state"]
+        msg.is_homed_bitmask = state["is_homed_bitmask"]
+        msg.stm32_uptime_ms = state["uptime_ms"]
+        msg.broadcast_seq = state["broadcast_seq"]
+
+        self._state_pub.publish(msg)
+
+    def _publish_endstops(self, state: dict):
+        msg = ArctosEndstops()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = "base_link"
+        msg.endstop_states = state["endstop_states"]
+        msg.trigger_counts = [int(c) for c in state["endstop_trigger_counts"]]
+        msg.triggered_names = triggered_endstop_names(state["endstop_states"])
+        self._endstop_pub.publish(msg)
+
+    # ------------------------------------------------------------------ #
+    # Shutdown                                                            #
+    # ------------------------------------------------------------------ #
+
+    def destroy_node(self):
+        self.get_logger().info("Shutting down arctos_bridge_node")
+        self._rx_thread_running = False
+
+        try:
+            self._cmd_client.unsubscribe()
+        except Exception:
+            pass
+
+        try:
+            self._listen_sock.close()
+        except Exception:
+            pass
+
+        self._rx_thread.join(timeout=2.0)
+
+        try:
+            self._cmd_client.close()
+        except Exception:
+            pass
+
+        super().destroy_node()
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = ArctossBridgeNode()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.try_shutdown()
+
+
+if __name__ == "__main__":
+    main()

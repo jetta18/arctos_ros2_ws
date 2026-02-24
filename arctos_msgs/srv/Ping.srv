@@ -1,0 +1,4 @@
+# Ping the STM32 to check connectivity.
+---
+bool success
+float64 round_trip_ms

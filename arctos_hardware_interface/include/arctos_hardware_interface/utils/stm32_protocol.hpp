@@ -78,6 +78,8 @@ public:
   bool stop();
   bool read_state(StateResponse & state_out);
 
+  bool move_all(const float * positions, float max_velocity, float acceleration);
+
   bool trajectory_begin(uint32_t trajectory_id, uint16_t num_points);
   bool trajectory_send_point(
     uint32_t trajectory_id, uint16_t index,

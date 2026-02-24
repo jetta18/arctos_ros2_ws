@@ -10,12 +10,11 @@ find_package(rclcpp REQUIRED)
 find_package(hardware_interface REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
+find_package(arctos_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
 
 add_library(arctos_hardware_interface SHARED
   src/stm32_hardware_interface.cpp
-  src/utils/unit_conversion.cpp
-  src/utils/stm32_protocol.cpp
-  src/utils/socket_manager.cpp
 )
 
 target_include_directories(arctos_hardware_interface
@@ -29,6 +28,8 @@ ament_target_dependencies(arctos_hardware_interface
   hardware_interface
   pluginlib
   rclcpp_lifecycle
+  arctos_msgs
+  std_msgs
 )
 
 pluginlib_export_plugin_description_file(hardware_interface "arctos_hardware_interface.xml")
@@ -55,6 +56,8 @@ ament_export_dependencies(
   hardware_interface
   pluginlib
   rclcpp_lifecycle
+  arctos_msgs
+  std_msgs
 )
 
 ament_package()

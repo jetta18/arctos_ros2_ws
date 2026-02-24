@@ -9,11 +9,9 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(controller_interface REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(rclcpp_action REQUIRED)
 find_package(pluginlib REQUIRED)
+find_package(rclcpp_action REQUIRED)
 find_package(control_msgs REQUIRED)
-find_package(trajectory_msgs REQUIRED)
-find_package(arctos_hardware_interface REQUIRED)
 
 include_directories(include)
 
@@ -24,11 +22,7 @@ target_compile_features(arctos_segment_controller PUBLIC cxx_std_17)
 ament_target_dependencies(arctos_segment_controller
   controller_interface
   rclcpp
-  rclcpp_action
   pluginlib
-  control_msgs
-  trajectory_msgs
-  arctos_hardware_interface
 )
 
 add_library(arctos_gripper_controller SHARED
@@ -61,6 +55,6 @@ install(FILES arctos_controller.xml
 
 ament_export_include_directories(include)
 ament_export_libraries(arctos_segment_controller arctos_gripper_controller)
-ament_export_dependencies(controller_interface rclcpp rclcpp_action pluginlib control_msgs trajectory_msgs arctos_hardware_interface)
+ament_export_dependencies(controller_interface rclcpp pluginlib rclcpp_action control_msgs)
 
 ament_package()

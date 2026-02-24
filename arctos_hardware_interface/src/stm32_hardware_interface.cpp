@@ -1,18 +1,17 @@
 #include "arctos_hardware_interface/stm32_hardware_interface.hpp"
 
-#include <chrono>
+#include <algorithm>
 #include <cmath>
-#include <cstring>
 #include <limits>
 
 namespace arctos_hardware_interface
 {
 
 STM32HardwareInterface::STM32HardwareInterface()
-: reconnect_enabled_(true),
-  shutdown_requested_(false),
-  hw_system_state_(0.0),
-  hw_interface_ptr_value_(0.0),
+: hw_system_state_(0.0),
+  bridge_system_state_(0.0),
+  bridge_servo_pulse_us_(1500.0),
+  state_received_(false),
   gripper_enabled_(false),
   hw_gripper_position_left_(0.0),
   hw_gripper_position_right_(0.0),
@@ -28,8 +27,12 @@ STM32HardwareInterface::STM32HardwareInterface()
 
 STM32HardwareInterface::~STM32HardwareInterface()
 {
-  perform_lifecycle_cleanup();
+  stop_ros_interface();
 }
+
+/* ------------------------------------------------------------------ */
+/* Lifecycle                                                          */
+/* ------------------------------------------------------------------ */
 
 hardware_interface::CallbackReturn STM32HardwareInterface::on_init(
   const hardware_interface::HardwareInfo & info)
@@ -40,12 +43,6 @@ hardware_interface::CallbackReturn STM32HardwareInterface::on_init(
     return hardware_interface::CallbackReturn::ERROR;
   }
 
-  std::string stm32_host = info_.hardware_parameters["stm32_host"];
-  int stm32_port = std::stoi(info_.hardware_parameters["stm32_port"]);
-
-  RCLCPP_INFO(logger_, "STM32 Host: %s, Port: %d", stm32_host.c_str(), stm32_port);
-
-  /* Count only motor-driven arm joints (skip gripper jaw joints) */
   size_t arm_joint_count = 0;
   for (const auto & joint : info_.joints)
   {
@@ -57,48 +54,11 @@ hardware_interface::CallbackReturn STM32HardwareInterface::on_init(
 
   hw_states_positions_.resize(arm_joint_count, 0.0);
   hw_states_velocities_.resize(arm_joint_count, 0.0);
-  gear_ratios_.resize(arm_joint_count, 1.0);
-  steps_per_revolution_.resize(arm_joint_count, 0.0);
-  joint_inversions_.resize(arm_joint_count, false);
+  hw_cmd_positions_.resize(arm_joint_count, 0.0);
+  hw_cmd_positions_prev_.resize(arm_joint_count, std::numeric_limits<double>::quiet_NaN());
+  bridge_positions_.resize(arm_joint_count, 0.0);
+  bridge_velocities_.resize(arm_joint_count, 0.0);
 
-  size_t motor_idx = 0;
-  for (const auto & joint : info_.joints)
-  {
-    if (joint.name == "Left_jaw_joint" || joint.name == "Right_jaw_joint")
-    {
-      continue;
-    }
-
-    std::string gear_param = "motors." + joint.name + ".gear_ratio";
-    if (info_.hardware_parameters.count(gear_param))
-    {
-      gear_ratios_[motor_idx] = std::stod(info_.hardware_parameters.at(gear_param));
-    }
-    else
-    {
-      RCLCPP_WARN(logger_, "No gear ratio for %s, using 1.0", joint.name.c_str());
-    }
-
-    steps_per_revolution_[motor_idx] = STEPS_PER_REV * MICROSTEPS * gear_ratios_[motor_idx];
-
-    std::string inv_param = "motors." + joint.name + ".inverted";
-    if (info_.hardware_parameters.count(inv_param))
-    {
-      joint_inversions_[motor_idx] = (info_.hardware_parameters.at(inv_param) == "true");
-    }
-
-    RCLCPP_INFO(logger_, "Joint %s: gear_ratio=%.2f, steps_per_rev=%.2f, inverted=%s",
-                joint.name.c_str(), gear_ratios_[motor_idx], steps_per_revolution_[motor_idx],
-                joint_inversions_[motor_idx] ? "true" : "false");
-    ++motor_idx;
-  }
-
-  unit_converter_ = std::make_unique<utils::UnitConverter>(
-    steps_per_revolution_, joint_inversions_);
-  socket_manager_ = std::make_unique<utils::STM32SocketManager>(
-    stm32_host, stm32_port, logger_);
-
-  /* Detect gripper joints (optional — missing joints are silently skipped) */
   gripper_enabled_ = false;
   for (const auto & joint : info_.joints)
   {
@@ -143,24 +103,8 @@ hardware_interface::CallbackReturn STM32HardwareInterface::on_init(
 hardware_interface::CallbackReturn STM32HardwareInterface::on_configure(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
-  RCLCPP_INFO(logger_, "Configuring STM32 Hardware Interface...");
-
-  if (!socket_manager_->connect())
-  {
-    RCLCPP_ERROR(logger_, "Failed to connect to STM32");
-    return hardware_interface::CallbackReturn::ERROR;
-  }
-
-  protocol_ = std::make_unique<utils::STM32Protocol>(
-    socket_manager_->get_socket_fd(), logger_);
-
-  if (!protocol_->ping())
-  {
-    RCLCPP_ERROR(logger_, "STM32 did not respond to PING");
-    socket_manager_->disconnect();
-    return hardware_interface::CallbackReturn::ERROR;
-  }
-
+  RCLCPP_INFO(logger_, "Configuring (bridge-backed mode)...");
+  start_ros_interface();
   RCLCPP_INFO(logger_, "Successfully configured");
   return hardware_interface::CallbackReturn::SUCCESS;
 }
@@ -169,7 +113,7 @@ hardware_interface::CallbackReturn STM32HardwareInterface::on_cleanup(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
   RCLCPP_INFO(logger_, "Cleaning up...");
-  perform_lifecycle_cleanup();
+  stop_ros_interface();
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
@@ -177,21 +121,21 @@ hardware_interface::CallbackReturn STM32HardwareInterface::on_shutdown(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
   RCLCPP_INFO(logger_, "Shutting down...");
-  perform_lifecycle_cleanup();
+  stop_ros_interface();
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
 hardware_interface::CallbackReturn STM32HardwareInterface::on_error(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
-  RCLCPP_ERROR(logger_, "Error state, stopping and disconnecting...");
-  if (protocol_)
-  {
-    protocol_->stop();
-  }
-  perform_lifecycle_cleanup();
+  RCLCPP_ERROR(logger_, "Error state");
+  stop_ros_interface();
   return hardware_interface::CallbackReturn::SUCCESS;
 }
+
+/* ------------------------------------------------------------------ */
+/* Interface export                                                   */
+/* ------------------------------------------------------------------ */
 
 std::vector<hardware_interface::StateInterface>
 STM32HardwareInterface::export_state_interfaces()
@@ -229,16 +173,17 @@ STM32HardwareInterface::export_command_interfaces()
 {
   std::vector<hardware_interface::CommandInterface> interfaces;
 
-  /* Expose a pointer to this HW interface so the controller can call
-   * lock_protocol() / get_protocol() / get_unit_converter() directly.
-   * The pointer is stored as a double via memcpy (safe on x86_64). */
-  auto * self = this;
-  static_assert(sizeof(self) <= sizeof(double), "pointer must fit in double");
-  hw_interface_ptr_value_ = 0.0;
-  std::memcpy(&hw_interface_ptr_value_, &self, sizeof(self));
-
-  interfaces.emplace_back(
-    "trajectory_hw", "hw_interface_ptr", &hw_interface_ptr_value_);
+  size_t cmd_idx = 0;
+  for (const auto & joint : info_.joints)
+  {
+    if (joint.name == "Left_jaw_joint" || joint.name == "Right_jaw_joint")
+    {
+      continue;
+    }
+    interfaces.emplace_back(
+      joint.name, "position", &hw_cmd_positions_[cmd_idx]);
+    ++cmd_idx;
+  }
 
   if (gripper_enabled_)
   {
@@ -249,29 +194,22 @@ STM32HardwareInterface::export_command_interfaces()
   return interfaces;
 }
 
+/* ------------------------------------------------------------------ */
+/* Activate / Deactivate                                              */
+/* ------------------------------------------------------------------ */
+
 hardware_interface::CallbackReturn STM32HardwareInterface::on_activate(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
   RCLCPP_INFO(logger_, "Activating...");
 
-  shutdown_requested_.store(false);
-  reconnect_enabled_ = true;
-
-  /* Read initial state */
-  utils::StateResponse state;
-  if (protocol_ && protocol_->read_state(state))
   {
-    for (size_t i = 0; i < hw_states_positions_.size() &&
-         i < utils::ProtocolConstants::MAX_JOINTS; ++i)
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    for (size_t i = 0; i < hw_cmd_positions_.size(); ++i)
     {
-      hw_states_positions_[i] = unit_converter_->steps_to_rad(state.positions[i], i);
-      hw_states_velocities_[i] = unit_converter_->steps_per_sec_to_rad_per_sec(
-        state.velocities[i], i);
+      hw_cmd_positions_[i] = bridge_positions_[i];
+      hw_cmd_positions_prev_[i] = bridge_positions_[i];
     }
-  }
-  else
-  {
-    RCLCPP_WARN(logger_, "Could not read initial state, using zeros");
   }
 
   RCLCPP_INFO(logger_, "Successfully activated");
@@ -282,78 +220,40 @@ hardware_interface::CallbackReturn STM32HardwareInterface::on_deactivate(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
   RCLCPP_INFO(logger_, "Deactivating...");
-
-  shutdown_requested_.store(true);
-  reconnect_enabled_ = false;
-
-  if (protocol_)
-  {
-    protocol_->stop();
-  }
-
-  if (socket_manager_)
-  {
-    socket_manager_->disconnect();
-  }
-
   RCLCPP_INFO(logger_, "Successfully deactivated");
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
+/* ------------------------------------------------------------------ */
+/* read() — copy latest state from bridge topic callback              */
+/* ------------------------------------------------------------------ */
+
 hardware_interface::return_type STM32HardwareInterface::read(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
-  /* Skip GET_STATE if the controller currently holds the protocol lock
-   * (e.g. during trajectory upload). Use try_lock to avoid blocking. */
-  std::unique_lock<std::mutex> lock(protocol_mutex_, std::try_to_lock);
-  if (!lock.owns_lock())
+  std::lock_guard<std::mutex> lock(state_mutex_);
+
+  if (!state_received_)
   {
     return hardware_interface::return_type::OK;
   }
 
-  if (!socket_manager_->is_connected() && reconnect_enabled_ && !shutdown_requested_.load())
+  for (size_t i = 0; i < hw_states_positions_.size(); ++i)
   {
-    socket_manager_->attempt_reconnection(reconnect_enabled_, shutdown_requested_);
-    if (socket_manager_->is_connected())
-    {
-      protocol_ = std::make_unique<utils::STM32Protocol>(
-        socket_manager_->get_socket_fd(), logger_);
-    }
+    hw_states_positions_[i] = bridge_positions_[i];
+    hw_states_velocities_[i] = bridge_velocities_[i];
   }
 
-  if (!protocol_)
-  {
-    static auto last_warn = std::chrono::steady_clock::now();
-    log_throttled("Protocol not initialized", last_warn);
-    return hardware_interface::return_type::ERROR;
-  }
-
-  utils::StateResponse state;
-  if (!protocol_->read_state(state))
-  {
-    static auto last_warn = std::chrono::steady_clock::now();
-    log_throttled("Failed to read state from STM32", last_warn);
-    return hardware_interface::return_type::ERROR;
-  }
-
-  for (size_t i = 0; i < hw_states_positions_.size() &&
-       i < utils::ProtocolConstants::MAX_JOINTS; ++i)
-  {
-    hw_states_positions_[i] = unit_converter_->steps_to_rad(state.positions[i], i);
-    hw_states_velocities_[i] = unit_converter_->steps_per_sec_to_rad_per_sec(
-      state.velocities[i], i);
-  }
-
-  hw_system_state_ = static_cast<double>(state.system_state);
+  hw_system_state_ = bridge_system_state_;
 
   if (gripper_enabled_)
   {
+    double pulse = bridge_servo_pulse_us_;
     double position_m = 0.0;
-    uint16_t pulse = state.servo_pulse_us;
     if (pulse >= servo_closed_pulse_us_ && pulse <= servo_open_pulse_us_)
     {
-      double fraction = static_cast<double>(pulse - servo_closed_pulse_us_) /
-                        static_cast<double>(servo_open_pulse_us_ - servo_closed_pulse_us_);
+      double fraction = (pulse - servo_closed_pulse_us_) /
+                        (servo_open_pulse_us_ - servo_closed_pulse_us_);
       position_m = fraction * gripper_max_opening_m_;
     }
     hw_gripper_position_left_ = position_m;
@@ -363,12 +263,46 @@ hardware_interface::return_type STM32HardwareInterface::read(
   return hardware_interface::return_type::OK;
 }
 
+/* ------------------------------------------------------------------ */
+/* write() — publish position commands to bridge topics               */
+/* ------------------------------------------------------------------ */
+
 hardware_interface::return_type STM32HardwareInterface::write(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
-  /* Trajectories are sent out-of-band by the controller via the protocol pointer. */
+  if (!cmd_pos_pub_)
+  {
+    return hardware_interface::return_type::OK;
+  }
 
-  if (gripper_enabled_ && protocol_)
+  bool any_changed = false;
+  for (size_t i = 0; i < hw_cmd_positions_.size(); ++i)
+  {
+    if (std::isnan(hw_cmd_positions_prev_[i]) ||
+        std::abs(hw_cmd_positions_[i] - hw_cmd_positions_prev_[i]) > POSITION_CMD_DEADBAND_RAD)
+    {
+      any_changed = true;
+      break;
+    }
+  }
+
+  if (any_changed)
+  {
+    auto msg = std::make_unique<std_msgs::msg::Float64MultiArray>();
+    msg->data.resize(hw_cmd_positions_.size());
+    for (size_t i = 0; i < hw_cmd_positions_.size(); ++i)
+    {
+      msg->data[i] = hw_cmd_positions_[i];
+    }
+    cmd_pos_pub_->publish(std::move(msg));
+
+    for (size_t i = 0; i < hw_cmd_positions_.size(); ++i)
+    {
+      hw_cmd_positions_prev_[i] = hw_cmd_positions_[i];
+    }
+  }
+
+  if (gripper_enabled_ && cmd_servo_pub_)
   {
     bool command_changed = std::isnan(hw_gripper_command_prev_) ||
                            std::abs(hw_gripper_command_ - hw_gripper_command_prev_) > 1e-6;
@@ -376,50 +310,99 @@ hardware_interface::return_type STM32HardwareInterface::write(
     {
       double clamped = std::clamp(hw_gripper_command_, 0.0, gripper_max_opening_m_);
       double fraction = clamped / gripper_max_opening_m_;
-      auto pulse = static_cast<uint16_t>(
+      auto pulse = static_cast<double>(
         servo_closed_pulse_us_ +
         fraction * (servo_open_pulse_us_ - servo_closed_pulse_us_));
 
       double distance_m = std::abs(clamped - hw_gripper_position_left_);
-      auto duration_ms = static_cast<uint16_t>(
-        std::clamp(distance_m / servo_speed_m_per_s_ * 1000.0, 0.0, 5000.0));
+      double duration_ms = std::clamp(
+        distance_m / servo_speed_m_per_s_ * 1000.0, 0.0, 5000.0);
 
-      std::unique_lock<std::mutex> lock(protocol_mutex_, std::try_to_lock);
-      if (lock.owns_lock())
-      {
-        protocol_->set_servo(pulse, duration_ms);
-        hw_gripper_command_prev_ = hw_gripper_command_;
-      }
+      auto msg = std::make_unique<std_msgs::msg::Float64MultiArray>();
+      msg->data = {pulse, duration_ms};
+      cmd_servo_pub_->publish(std::move(msg));
+
+      hw_gripper_command_prev_ = hw_gripper_command_;
     }
   }
 
   return hardware_interface::return_type::OK;
 }
 
-void STM32HardwareInterface::perform_lifecycle_cleanup()
-{
-  shutdown_requested_.store(true);
-  reconnect_enabled_ = false;
+/* ------------------------------------------------------------------ */
+/* Internal ROS node for bridge communication                         */
+/* ------------------------------------------------------------------ */
 
-  if (socket_manager_)
+void STM32HardwareInterface::start_ros_interface()
+{
+  if (ros_node_)
   {
-    socket_manager_->disconnect();
+    return;
   }
 
-  protocol_.reset();
+  ros_node_ = rclcpp::Node::make_shared("arctos_hw_bridge_client");
+
+  state_sub_ = ros_node_->create_subscription<arctos_msgs::msg::ArctosState>(
+    "/arctos/state", 10,
+    std::bind(&STM32HardwareInterface::state_callback, this, std::placeholders::_1));
+
+  cmd_pos_pub_ = ros_node_->create_publisher<std_msgs::msg::Float64MultiArray>(
+    "/arctos/cmd_positions", 10);
+
+  cmd_servo_pub_ = ros_node_->create_publisher<std_msgs::msg::Float64MultiArray>(
+    "/arctos/cmd_servo", 10);
+
+  executor_ = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
+  executor_->add_node(ros_node_);
+
+  executor_thread_ = std::thread([this]()
+  {
+    executor_->spin();
+  });
+
+  RCLCPP_INFO(logger_, "ROS bridge interface started");
 }
 
-void STM32HardwareInterface::log_throttled(
-  const std::string & message,
-  std::chrono::steady_clock::time_point & last_log_time)
+void STM32HardwareInterface::stop_ros_interface()
 {
-  auto now = std::chrono::steady_clock::now();
-  if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_log_time).count() >
-      LOG_THROTTLE_MS)
+  if (executor_)
   {
-    RCLCPP_WARN(logger_, "%s", message.c_str());
-    last_log_time = now;
+    executor_->cancel();
   }
+
+  if (executor_thread_.joinable())
+  {
+    executor_thread_.join();
+  }
+
+  state_sub_.reset();
+  cmd_pos_pub_.reset();
+  cmd_servo_pub_.reset();
+
+  if (executor_)
+  {
+    executor_->remove_node(ros_node_);
+    executor_.reset();
+  }
+
+  ros_node_.reset();
+}
+
+void STM32HardwareInterface::state_callback(
+  const arctos_msgs::msg::ArctosState::SharedPtr msg)
+{
+  std::lock_guard<std::mutex> lock(state_mutex_);
+
+  size_t count = std::min(bridge_positions_.size(), msg->positions.size());
+  for (size_t i = 0; i < count; ++i)
+  {
+    bridge_positions_[i] = msg->positions[i];
+    bridge_velocities_[i] = msg->velocities[i];
+  }
+
+  bridge_system_state_ = static_cast<double>(msg->system_state);
+  bridge_servo_pulse_us_ = static_cast<double>(msg->servo_pulse_us);
+  state_received_ = true;
 }
 
 }  // namespace arctos_hardware_interface

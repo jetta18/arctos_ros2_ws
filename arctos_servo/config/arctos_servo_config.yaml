@@ -1,0 +1,63 @@
+###############################################
+# MoveIt Servo configuration for Arctos robot
+###############################################
+use_gazebo: false
+
+## Properties of incoming commands
+command_in_type: "unitless"  # [-1:1] range, as from joystick/keyboard
+scale:
+  linear: 0.3    # Max linear velocity [m/s] for cartesian commands
+  rotational: 0.5  # Max angular velocity [rad/s] for cartesian commands
+  joint: 0.5     # Max joint velocity for joint commands
+
+## Properties of outgoing commands
+publish_period: 0.034  # ~30 Hz
+low_latency_mode: false
+
+# JointGroupPositionController subscribes to ~/commands (Float64MultiArray)
+command_out_type: std_msgs/Float64MultiArray
+
+publish_joint_positions: true
+publish_joint_velocities: false
+publish_joint_accelerations: false
+
+## Smoothing filter
+smoothing_filter_plugin_name: "online_signal_smoothing::ButterworthFilterPlugin"
+
+# move_group is the primary planning scene monitor
+is_primary_planning_scene_monitor: false
+
+## MoveIt properties
+move_group_name: arctos_arm
+planning_frame: base_link
+
+## Other frames
+ee_frame_name: Link_6_1
+robot_link_command_frame: base_link
+
+## Stopping behaviour
+incoming_command_timeout: 0.1
+num_outgoing_halt_msgs_to_publish: 4
+
+## Singularity and joint limit handling
+# Arctos starts at all-zeros which is a deep singularity (shoulder + wrist).
+# Thresholds are set extremely high so cartesian jog decelerates heavily
+# but never hard-stops, allowing the user to slowly jog out of the
+# singular configuration.  Use Joint Mode first if cartesian is too slow.
+lower_singularity_threshold: 500.0
+hard_stop_singularity_threshold: 1e9
+joint_limit_margin: 0.1
+leaving_singularity_threshold_multiplier: 2.0
+
+## Topic names
+cartesian_command_in_topic: ~/delta_twist_cmds
+joint_command_in_topic: ~/delta_joint_cmds
+joint_topic: /joint_states
+status_topic: ~/status
+command_out_topic: /arctos_servo_controller/commands
+
+## Collision checking
+check_collisions: true
+collision_check_rate: 10.0
+self_collision_proximity_threshold: 0.01
+scene_collision_proximity_threshold: 0.02

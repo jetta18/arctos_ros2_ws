@@ -1,146 +1,72 @@
-# AGENTS.md
+## Nodes
+- Build ROS 2 Nodes to have a single responsibility.
+- Separate application logic into its own class or library, keeping ROS 2 nodes focused solely on communication. This improves code clarity, testability, and maintainability.
 
-This repository is the `src/` folder of a ROS 2 `colcon` workspace.
+## Launch files
+- Generate launch files in `launch` folder.
+- Prefer XML launch format. Python launch files are not intended to be used as the launch front-end, but can be still used if needed for flexibility.
+- Avoid passing or hardcoding node parameters in launch files; use config files instead.
 
-- Git repo root: `/home/michael/arctos_ws/src`
-- Colcon workspace root (build/test from here): `/home/michael/arctos_ws`
+## Parameters and Config Files
+- Store ROS node parameters in YAML files under the `config` folder.  
+- Treat package-level YAML files as "default" parameters. Users should not modify these files directly. Instead, they can override parameters in their own copies.
+- If parameters are expected to be changed in runtime, make the parameters dynamic by defining parameter callbacks.
 
-Packages in this repo (build types)
-- `arctos_gui` (ament_python, PyQt5 + rclpy)
-- `arctos_controller` (ament_cmake, C++17 ros2_control controller plugin)
-- `arctos_hardware_interface` (ament_cmake, C++17 ros2_control hardware plugin)
-- `arctos_description`, `arctos_bringup`, `arctos_moveit_config` (ament_cmake; URDF/config/launch; MoveIt config is mostly auto-generated)
+## Logging
+- Use ROS 2 logger instead of `print()` and `std::cout` statements. 
+- Use relevant log levels to avoid log noise:
+  - `INFO`: System operates normally, logged as informational purposes.
+  - `WARN`: Unexpected, but recoverable condition. Might require action.
+  - `ERROR`: Critical failure. System no longer operates correctly. Requires immediate action.
+- Avoid log spam. A usual mistake is to add logs on high-frequency callbacks, which flood the logs. For these cases, prefer throttled logs.
 
-Other top-level dirs
-- `stm32_scripts/`: STM32-side notes/examples (not part of colcon build)
-- `docs/`: architecture notes + reference PDFs
+## Message Interfaces
+- Aim to reuse existing message interfaces, for example from the [common_interfaces](https://github.com/ros2/common_interfaces/) repository. Examples:
+    - `geometry_msgs`
+    - `sensor_msgs`
+    - `nav_msgs`
+    - `tf2_msgs`
+- If there isn't a viable existing message type that fits well for your use-case, create custom message interface.
+- Custom message interfaces should be in their own packages with `_msgs` suffix. This allows easy message reusage without depending on the full package.
+- Avoid using primitive type messages from the `std_msgs` or `example_interfaces` packages, such as `Float32`, `Bool` and `String`, as they are meant to be used only for quick prototyping and example usage. Instead, use a custom message with a semantic meaning.
+  - This doesn't apply to general messages from `std_msgs`, such as `Header`
+- Enum's in message interfaces can be simulated with constants. See for example `level` in [DiagnosticStatus](https://github.com/ros2/common_interfaces/blob/rolling/diagnostic_msgs/msg/DiagnosticStatus.msg) message.
 
-Cursor/Copilot rules
-- None found (`.cursor/rules/`, `.cursorrules`, `.github/copilot-instructions.md`).
+## Actions and Services
+- Use services only for very fast executing tasks (less than a second), such as requesting or setting a state. Use actions for tasks that take time to execute, can have multiple error cases or may require cancellation.
+- Prefer to use enum-style error codes instead of string messages when an action can fail for multiple reasons. This allows clients to reliably parse errors and enables user-friendly messages, including support for multiple languages.
 
-## Build
+## Code Style
+- Refer to official ROS 2 [code style guide](https://docs.ros.org/en/rolling/The-ROS2-Project/Contributing/Code-Style-Language-Versions.html).
+- Follow the existing project coding style for all legacy code to maintain consistency. Apply updated best practices only to new nodes or when refactoring code.
 
-Environment setup
-- Source ROS 2 first (example): `source /opt/ros/$ROS_DISTRO/setup.bash`
-- From `/home/michael/arctos_ws`, source overlay after building: `source install/setup.bash`
+## Performance
+- Prefer C++ over Python for performance-critical nodes with high-frequency control loops and high-bandwidth data. Python works well for example for tooling, high-level orchestration, testing and prototyping.
+- Use C++ composable nodes with intra-process communication enabled to pass large data such as images and point clouds between nodes. This avoids large memory and DDS overhead.
 
-Common builds (run from `/home/michael/arctos_ws`)
-- Build everything: `colcon build --symlink-install`
-- Build a single package: `colcon build --packages-select arctos_gui --symlink-install`
-- Build a package + deps: `colcon build --packages-up-to arctos_bringup --symlink-install`
-- Debuggable C++ build: `colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=RelWithDebInfo`
-- Export `compile_commands.json` (clangd/IDE): `colcon build --symlink-install --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`
+## Executors and Callback Groups
+- Prefer `SingleThreadedExecutor` over `MultiThreadedExecutor` where possible. Single threaded applications are usually cleaner, easier to test, have deterministic execution order, and have a lower performance impact. 
+  - It can be tempting to use `MultiThreadedExecutor` for any node to allow synchronous communication inside other callbacks. This can be often avoided with good Node design or asynchronous communication.
+  - For applications that truly require multi-threading, `MultiThreadedExecutor` is a great option.
 
-Clean builds (when things get weird)
-- Prefer `--cmake-clean-cache` first: `colcon build --packages-select <pkg> --symlink-install --cmake-clean-cache`
-- Full wipe (slow; rebuild everything): `rm -rf /home/michael/arctos_ws/build /home/michael/arctos_ws/install /home/michael/arctos_ws/log`
+## Dependencies
+- Always define ROS 2 package dependencies on package-level.
+  - Use `package.xml` to automatically install dependencies using `rosdep`
+  - If a package isn't available in `rosdep`, prefer to make a PR for rosdistro ([instructions](https://github.com/ros/rosdistro/blob/master/CONTRIBUTING.md#rosdep-rules-contributions)).
+  - Rosdep doesn't support exact version tagging. If you require specific version for example of a Python package, use `requirements.txt` file.
+- If your project requires a specific version of external dependencies to be built from source, `vcs_tool` ([link](https://github.com/dirk-thomas/vcstool)) is commonly used to define such dependencies in `.repos` file format.
+  - Use an exact version of the repository, such as a commit hash or tag to avoid regressions.
+- Do not rebuild external ROS 2 packages just to change configuration or launch files. Instead, make a copy of the launch and config files in your workspace and modify them there.
 
-Common runs (after `source install/setup.bash`)
-- GUI: `ros2 run arctos_gui arctos_gui`
-- Bringup: `ros2 launch arctos_bringup arctos_bringup.launch.py`
+## Documentation
+- Document each ROS package with `README.md` file that has the following information for each node:
+  - Short description and overview
+  - Usage
+  - API: Topics, Services and Actions
+  - Parameters with type, description and default value.
 
-Dependencies (optional)
-- Install ROS deps: `rosdep install --from-paths src -i -y --rosdistro $ROS_DISTRO`
-
-Gotchas
-- `colcon build/test` must run from the workspace root (`/home/michael/arctos_ws`), not this git root.
-- If `ros2` can't find packages, confirm `echo $AMENT_PREFIX_PATH` includes `/home/michael/arctos_ws/install`.
-- `arctos_gui` uses the FollowJointTrajectory action server for jogging.
-
-## Test (colcon)
-
-Run tests (run from `/home/michael/arctos_ws`)
-- All packages: `colcon test --event-handlers console_direct+`
-- One package: `colcon test --packages-select arctos_gui`
-- Show failures: `colcon test-result --verbose`
-
-Run a single test (recommended patterns)
-- Single pytest test function: `colcon test --packages-select arctos_gui --pytest-args "test/test_flake8.py::test_flake8"`
-- Single pytest file: `colcon test --packages-select arctos_gui --pytest-args "test/test_pep257.py"`
-- Single CTest/GTest by name regex: `colcon test --packages-select arctos_controller --ctest-args -R <regex> --output-on-failure`
-- Direct CTest (from build tree): `cd /home/michael/arctos_ws/build/<pkg> && ctest -R <regex> --output-on-failure`
-
-Notes
-- `arctos_gui/test/` contains ROS 2 linter tests (ament_flake8 / ament_pep257 / ament_copyright).
-- If you add tests/lints, use standard ament patterns: `ament_add_gtest(...)` and/or `find_package(ament_lint_auto REQUIRED)` + `ament_lint_auto_find_test_dependencies()`.
-
-## Lint
-
-Preferred (matches ROS 2 CI expectations)
-- Python flake8: `colcon test --packages-select arctos_gui --pytest-args "test/test_flake8.py::test_flake8"`
-- Python docstrings (pep257): `colcon test --packages-select arctos_gui --pytest-args "test/test_pep257.py::test_pep257"`
-
-Direct execution (useful for quick iteration)
-- `pytest -q arctos_gui/test/test_flake8.py::test_flake8`
-- `pytest -q arctos_gui/test/test_pep257.py::test_pep257`
-
-## Code Style (keep diffs focused; prioritize clean, testable code)
-
-Clean code is code the whole team can read and safely evolve (readable, changeable, extensible, maintainable).
-
-Clean Code policy (apply everywhere)
-- General: follow standard conventions; KISS (reduce complexity); fix root causes; boy scout rule (small local cleanups, avoid churn).
-- Design: keep configurable data high-level (YAML/params); avoid over-configurability; use dependency injection; apply Law of Demeter.
-- Branching: prefer polymorphism/strategies/tables to long if/else or switch/case; keep nesting shallow.
-- Threading: keep multithreading boundaries explicit and isolated; never touch Qt widgets off the UI thread.
-- Readability: be consistent; use explanatory variables; encapsulate boundary conditions and unit conversions.
-- Types/units: prefer dedicated value objects/types over primitives; make units explicit (`*_rad`, `*_ms`, `*_hz`) and validate at boundaries.
-- Naming: descriptive + unambiguous; searchable/pronounceable; avoid encodings; replace magic numbers with named constants.
-- Functions: small, do one thing, descriptive; prefer fewer args; no flag args; minimize side effects.
-- Comments: explain intent/constraints/warnings; avoid redundancy and noise; never comment-out code.
-- Structure: separate concepts vertically; keep related code close; keep lines short; whitespace for grouping; no alignment tricks.
-- Tests: readable, fast, independent, repeatable; one assert (or one concept) per test; hardware-free by default.
-- Smells to avoid: rigidity, fragility, immobility, needless complexity, needless repetition, opacity.
-
-Python (`arctos_gui/`)
-- Formatting: 4 spaces; PEP8-ish line lengths; wrap long Qt stylesheet strings carefully.
-- Imports: standard library, third-party, then local; one import per line; no wildcard imports.
-- Docstrings: PEP257 (module/class/function docstrings; first line is a short summary).
-- Typing: add type hints for public APIs and cross-module calls; prefer `Optional[T]` for compatibility.
-- Qt/ROS: never block the UI thread; use `QTimer`, signals/slots, or a worker thread for I/O.
-- Error handling/logging: catch specific exceptions; use ROS logger or GUI log; avoid `print()`.
-- Imports (Qt): prefer module-scope imports; use local imports only to break import cycles.
-- Prefer `pathlib.Path` for filesystem paths and explicit encodings for file I/O.
-- Use `dataclasses` for simple state/config objects instead of nested dicts.
-- Threads: never touch Qt widgets off the UI thread; stop/join workers in `closeEvent`.
-
-C++ (C++17; `arctos_*`)
-- Match local formatting (this repo mixes brace/indent styles); keep changes minimal.
-- Headers: follow the package's existing pattern (`#pragma once` vs include guards); avoid `using namespace` in headers.
-- Includes: prefer `#include <...>` then `#include "..."`; forward declare when it reduces dependencies.
-- Types: use `std::size_t` for indices, fixed-width ints for transport/protocol, and explicit casts to satisfy `-Werror=conversion`.
-- Error handling: avoid exceptions in control loops and transport paths; return status/`std::optional`, log once per event, keep timeouts bounded.
-- Concurrency/RT: avoid heap allocations and high-rate logging in `read()`/`write()`/`update()`; guard shared state and join threads in destructors.
-- Time: prefer `std::chrono` for timeouts/durations; avoid raw doubles unless the rest of the API is seconds.
-- Constants: prefer `constexpr` and `enum class`; avoid magic numbers.
-- Logging: throttle recurring warnings (`RCLCPP_*_THROTTLE`) and keep logs out of hot paths.
-- Avoid dynamic allocation in control loops; pre-allocate and reuse buffers where practical.
-- Prefer `std::array` for fixed-size (6-axis) vectors when it simplifies ownership/perf.
-- Include order: own header, then standard, then ROS/third-party, then local headers.
-
-ROS 2 / ament specifics
-- Prefer `colcon build --symlink-install` for iteration (Python edits picked up without reinstall).
-- Declare parameters with defaults early, validate them on configure, and keep parameter reads out of hot loops.
-- Create publishers/subscribers/timers once (init/configure), not inside high-rate update paths.
-- Plugin packages must keep plugin XML and class names in sync:
-  - `arctos_hardware_interface/arctos_hardware_interface.xml`: `arctos_hardware_interface/STM32HardwareInterface`
-  - `arctos_controller/arctos_controller.xml`: `arctos_controller/ArctosSegmentController`
-- Public headers live in `include/<pkg>/...` and must be installed via `install(DIRECTORY include/ ...)`.
-- For new libs/executables: add `ament_target_dependencies(...)` and `install(TARGETS ...)`.
-- Launch files: use `get_package_share_directory` and launch arguments; avoid hard-coded absolute paths.
-- Tests: register them under `if(BUILD_TESTING)` and keep them hardware-independent by default.
-
-Config/URDF/launch
-- YAML: 2-space indent, no tabs, avoid duplicate keys; keep units explicit.
-- Xacro/URDF: prefer properties/macros; keep frame/joint naming consistent with controllers.
-- `arctos_moveit_config/` is mostly generated; avoid manual edits unless you know what is overwritten.
-
-Agent hygiene
-- Keep changes small and focused; avoid drive-by refactors and churn.
-- If you change behavior, update docs/launch/config and add a test when practical.
-- Run at least a package-level build/test for touched packages when possible.
-
-Hardware-facing code
-- Do not change protocol constants/byte layouts without updating docs and the STM32 side.
-- Keep reconnection logic rate-limited; avoid blocking calls in hot control loops.
-- Default interface: STM32 endpoint `192.168.178.159:8888` (UDP).
+## Testing
+- At minimum, write thorough unit tests for core application logic, using mocks where appropriate to isolate the tested functionality. If the application logic is well-separated from the ROS 2 nodes, the nodes themselves do not require unit tests.
+- Test ROS 2 nodes, including their communication behavior, as part of integration testing.
+- Aim for high test coverage (90-100%).
+- Avoid using arbitrary sleeps in tests, as they can make tests non-deterministic and flaky. Instead of sleeping to wait for a ROS message, use synchronization mechanisms or wait for the expected result with a proper timeout.

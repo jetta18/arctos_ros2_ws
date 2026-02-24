@@ -1,0 +1,5 @@
+# Trigger a reconnection attempt to the STM32.
+---
+bool success
+string message
+uint8 status   # ConnectionStatus enum value after attempt

@@ -1,0 +1,7 @@
+# Query the home offset for an axis.
+# axis: 0=X, 1=Y, 2=Z, 3=A, 4=B, 5=C
+uint8 axis
+---
+bool success
+int32 offset_steps
+string message

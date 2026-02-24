@@ -1,0 +1,10 @@
+# Home axis to endstop then move to offset position.
+# axis: 0=X, 1=Y, 2=Z, 3=A, 4=B, 5=C
+# velocity: homing velocity in rad/s (0 = use default), converted to steps/s by bridge
+# offset_steps: signed offset from endstop to home position (in raw steps)
+uint8 axis
+float64 velocity
+int32 offset_steps
+---
+bool success
+string message

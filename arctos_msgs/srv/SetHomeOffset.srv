@@ -1,0 +1,10 @@
+# Set the home offset and direction for an axis.
+# axis: 0=X, 1=Y, 2=Z, 3=A, 4=B, 5=C
+# direction: 0=MIN, 1=MAX (which endstop to home to)
+# offset_steps: signed step count from endstop to home position
+uint8 axis
+uint8 direction
+int32 offset_steps
+---
+bool success
+string message

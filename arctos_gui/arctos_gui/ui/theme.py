@@ -16,6 +16,13 @@ from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QApplication, QWidget
 
 
+# Spacing & radius constants (reference these from components, never inline literals)
+OUTER_MARGIN: int = 12
+WIDGET_SPACING: int = 8
+CARD_SPACING: int = 12
+RADIUS_CARD: int = 10
+RADIUS_INPUT: int = 8
+
 # Color system (light, professional)
 _BG_TOP = "#f8fafc"
 _BG_BOTTOM = "#eef2f7"
@@ -69,6 +76,7 @@ def set_status(widget: QWidget, status: Optional[str]) -> None:
 
 def _repolish(widget: QWidget) -> None:
     # Dynamic property selectors require a polish to update.
+    """Perform repolish."""
     widget.style().unpolish(widget)
     widget.style().polish(widget)
     widget.update()
@@ -76,6 +84,7 @@ def _repolish(widget: QWidget) -> None:
 
 def _build_qss() -> str:
     # Keep the QSS in one place so UI components don't carry styling noise.
+    """Build the qss."""
     return f"""
 /* Base */
 QMainWindow {{

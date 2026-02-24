@@ -20,6 +20,7 @@ from ...ui.theme import set_role, set_variant
 
 
 def _connect(signal: Any, slot: Callable[..., object]) -> None:
+    """Connect to the state."""
     getattr(signal, "connect")(slot)  # type: ignore
 
 
@@ -29,6 +30,7 @@ class DebugWindow(QWidget):
     message_received = pyqtSignal(str)
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
+        """Initialize the instance."""
         super().__init__(parent)
         self._max_lines = 1000
         self._is_paused = False
@@ -41,6 +43,7 @@ class DebugWindow(QWidget):
         self._setup_timer()
 
     def _setup_ui(self) -> None:
+        """Set up the ui."""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(12)
@@ -57,6 +60,7 @@ class DebugWindow(QWidget):
         layout.addWidget(self._status_label)
 
     def _create_header(self) -> QFrame:
+        """Perform create header."""
         header = QFrame()
         set_role(header, "card")
 
@@ -87,6 +91,7 @@ class DebugWindow(QWidget):
         return header
 
     def _setup_timer(self) -> None:
+        """Set up the timer."""
         self._status_timer = QTimer()
         _connect(self._status_timer.timeout, self._update_status)
         self._status_timer.start(1000)
@@ -106,6 +111,7 @@ class DebugWindow(QWidget):
         self.message_received.emit(message)
 
     def _append_message(self, message: str) -> None:
+        """Perform append message."""
         timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
         formatted = f"[{timestamp}] {message}"
 
@@ -129,15 +135,18 @@ class DebugWindow(QWidget):
             cursor.deleteChar()
 
     def _toggle_pause(self, checked: bool) -> None:
+        """Toggle the pause."""
         self._is_paused = checked
         self._pause_button.setText("Resume" if checked else "Pause")
         set_variant(self._pause_button, "warning" if checked else None)
 
     def _clear_display(self) -> None:
+        """Clear the display."""
         self._text_display.clear()
         self._message_count = 0
 
     def _update_status(self) -> None:
+        """Update the status."""
         if self._is_paused:
             status = "Paused"
         elif self._connected:
@@ -151,6 +160,7 @@ class DebugWindow(QWidget):
         )
 
     def _toggle_connection(self) -> None:
+        """Toggle the connection."""
         if not self._client:
             return
 

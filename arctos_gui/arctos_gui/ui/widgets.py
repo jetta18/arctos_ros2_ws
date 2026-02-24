@@ -31,7 +31,9 @@ _ACTION_MIN_HEIGHT_PX = 28
 
 
 class _NoWheelMixin:
+    """No Wheel Mixin class."""
     def wheelEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        """Ignore mouse wheel events to prevent accidental value changes."""
         if not self.hasFocus():
             event.ignore()
             return
@@ -39,19 +41,25 @@ class _NoWheelMixin:
 
 
 class NoWheelComboBox(_NoWheelMixin, QComboBox):
+    """No Wheel Combo Box class."""
     def __init__(self, parent: Optional[QWidget] = None) -> None:
+        """Initialize the instance."""
         super().__init__(parent)
         self.setFocusPolicy(Qt.StrongFocus)
 
 
 class NoWheelSpinBox(_NoWheelMixin, QSpinBox):
+    """No Wheel Spin Box class."""
     def __init__(self, parent: Optional[QWidget] = None) -> None:
+        """Initialize the instance."""
         super().__init__(parent)
         self.setFocusPolicy(Qt.StrongFocus)
 
 
 class NoWheelDoubleSpinBox(_NoWheelMixin, QDoubleSpinBox):
+    """No Wheel Double Spin Box class."""
     def __init__(self, parent: Optional[QWidget] = None) -> None:
+        """Initialize the instance."""
         super().__init__(parent)
         self.setFocusPolicy(Qt.StrongFocus)
 
@@ -90,6 +98,7 @@ def action_button(text: str, variant: Optional[str] = None) -> QPushButton:
 
 
 def combo_box(*, items: Optional[Sequence[str]] = None) -> QComboBox:
+    """Perform combo box."""
     box = NoWheelComboBox()
     if items:
         box.addItems(list(items))
@@ -99,6 +108,7 @@ def combo_box(*, items: Optional[Sequence[str]] = None) -> QComboBox:
 
 
 def scroll_container(content: QWidget) -> QScrollArea:
+    """Perform scroll container."""
     area = QScrollArea()
     area.setWidgetResizable(True)
     area.setFrameShape(QScrollArea.NoFrame)
@@ -156,6 +166,7 @@ def int_spinbox(
 
 @dataclass(frozen=True)
 class WrapGridConfig:
+    """Wrap Grid Config class."""
     min_cell_width_px: int = 320
     h_spacing_px: int = 10
     v_spacing_px: int = 10
@@ -174,6 +185,7 @@ class WrapGrid(QWidget):
         config: WrapGridConfig = WrapGridConfig(),
         parent: Optional[QWidget] = None,
     ) -> None:
+        """Initialize the instance."""
         super().__init__(parent)
         self._widgets = list(widgets)
         self._config = config
@@ -191,14 +203,17 @@ class WrapGrid(QWidget):
         self._relayout()
 
     def showEvent(self, a0) -> None:  # noqa: N802 (Qt override)
+        """Handle the Qt show event."""
         super().showEvent(a0)
         self._relayout()
 
     def resizeEvent(self, a0: QResizeEvent) -> None:  # noqa: N802 (Qt override)
+        """Perform resizeEvent."""
         super().resizeEvent(a0)
         self._relayout()
 
     def _relayout(self) -> None:
+        """Perform relayout."""
         while self._grid.count():
             self._grid.takeAt(0)
 
@@ -219,6 +234,7 @@ class WrapGrid(QWidget):
         self.updateGeometry()
 
     def _compute_columns(self) -> int:
+        """Perform compute columns."""
         spacing = max(0, self._grid.horizontalSpacing())
         widget_min = 0
         for w in self._widgets:
@@ -237,3 +253,32 @@ def action_button_row(*buttons: QPushButton, min_cell_width_px: int = 60) -> Wra
         list(buttons),
         config=WrapGridConfig(min_cell_width_px=min_cell_width_px),
     )
+
+
+def status_indicator_row(
+    label_text: str,
+    initial_status: Optional[str] = "disconnected",
+) -> tuple[QLabel, QLabel]:
+    """Create a status dot + text label pair for a status indicator row.
+
+    Args:
+        label_text: The descriptive text shown next to the dot.
+        initial_status: Initial status property value (e.g. ``"connected"``,
+            ``"disconnected"``). Resolved by the global QSS via dynamic properties.
+
+    Returns:
+        A ``(dot_label, text_label)`` tuple. Both widgets have their ``role``
+        and ``status`` properties pre-set. Callers update status via
+        ``set_status(widget, status)`` from ``ui.theme``.
+    """
+    from .theme import set_role, set_status  # local import to avoid circular
+
+    dot = QLabel("●")
+    set_role(dot, "statusDot")
+    set_status(dot, initial_status)
+
+    text = QLabel(label_text)
+    set_role(text, "statusText")
+    set_status(text, initial_status)
+
+    return dot, text

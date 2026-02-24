@@ -1,5 +1,8 @@
 """Main entry point for the Arctos GUI."""
 
+from __future__ import annotations
+
+import logging
 import os
 import signal
 
@@ -7,42 +10,48 @@ import rclpy
 from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import QApplication
 
+from .backend.settings_manager import SettingsManager
 from .components.jog.ros_jog_client import ArctosRosJogClient
 from .main import ArctosMainWindow
 from .ui import apply_app_theme
 
+logger = logging.getLogger(__name__)
+
 try:
-    from .components.cartesian_jog.ros_cartesian_jog_client import ArctosCartesianJogClient
-    CARTESIAN_JOG_AVAILABLE = True
+    from .components.servo_jog.ros_servo_jog_client import ArctosRosServoJogClient
+    SERVO_JOG_AVAILABLE = True
 except ImportError:
-    CARTESIAN_JOG_AVAILABLE = False
+    SERVO_JOG_AVAILABLE = False
 
 
 def main() -> None:
     """Main entry point for the Arctos GUI.
-    
-    Starts the Qt event loop with ROS-based jog client.
+
+    Initialises settings, ROS clients, and the Qt application, then starts
+    the event loop.
     """
     import sys
+
+    logging.basicConfig(level=logging.INFO)
+
+    settings_manager = SettingsManager()
+    settings_manager.load()
 
     rclpy.init(args=None)
 
     node_prefix = f"arctos_gui_{os.getpid()}"
 
-    # Create ROS-based jog client
     jog_client = ArctosRosJogClient(node_name=f"{node_prefix}_jog_client")
 
-    # Create MoveIt-based cartesian jog client (optional)
-    cartesian_jog_client = None
-    if CARTESIAN_JOG_AVAILABLE:
+    servo_jog_client = None
+    if SERVO_JOG_AVAILABLE:
         try:
-            cartesian_jog_client = ArctosCartesianJogClient(
-                node_name=f"{node_prefix}_cartesian_jog_client"
+            servo_jog_client = ArctosRosServoJogClient(
+                node_name=f"{node_prefix}_servo_jog"
             )
         except Exception as exc:
-            print(f"Warning: Could not create cartesian jog client: {exc}")
+            logger.warning("Could not create servo jog client: %s", exc)
 
-    # Create Qt application
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(True)
     apply_app_theme(app)
@@ -51,6 +60,7 @@ def main() -> None:
     window = None
 
     def _shutdown() -> None:
+        """Close the window, disconnect clients, and shut down ROS exactly once."""
         nonlocal shutdown_started
         if shutdown_started:
             return
@@ -60,8 +70,8 @@ def main() -> None:
             if window is not None:
                 window.close()
             jog_client.disconnect()
-            if cartesian_jog_client:
-                cartesian_jog_client.disconnect()
+            if servo_jog_client:
+                servo_jog_client.disconnect()
         finally:
             if rclpy.ok():
                 rclpy.shutdown()
@@ -69,19 +79,20 @@ def main() -> None:
     app.aboutToQuit.connect(_shutdown)
 
     def _handle_termination_signal(_signum: int, _frame) -> None:  # noqa: ANN001
+        """Trigger Qt shutdown when SIGINT/SIGTERM is received."""
         app.quit()
 
     signal.signal(signal.SIGINT, _handle_termination_signal)
     signal.signal(signal.SIGTERM, _handle_termination_signal)
 
-    # Keep Python signal handling responsive while Qt event loop is running.
     signal_timer = QTimer()
     signal_timer.timeout.connect(lambda: None)
     signal_timer.start(100)
 
     window = ArctosMainWindow(
         jog_client=jog_client,
-        cartesian_jog_client=cartesian_jog_client,
+        servo_jog_client=servo_jog_client,
+        settings_manager=settings_manager,
     )
     window.show()
 

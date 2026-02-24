@@ -8,6 +8,9 @@ controller_manager:
     arctos_controller:
       type: arctos_controller/ArctosSegmentController
 
+    arctos_servo_controller:
+      type: position_controllers/JointGroupPositionController
+
     gripper_controller:
       type: arctos_controller/ArctosGripperController
 
@@ -20,6 +23,21 @@ arctos_controller:
       - A_joint
       - B_joint
       - C_joint
+
+arctos_servo_controller:
+  ros__parameters:
+    joints:
+      - X_joint
+      - Y_joint
+      - Z_joint
+      - A_joint
+      - B_joint
+      - C_joint
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
 
 gripper_controller:
   ros__parameters:

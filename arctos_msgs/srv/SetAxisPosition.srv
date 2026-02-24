@@ -1,0 +1,8 @@
+# Set the step counter for a single axis to an arbitrary value
+# Useful for resetting position to zero after homing to endstop
+
+uint8 axis          # Axis index 0-5
+float32 position    # New position in steps (use 0.0 to reset)
+---
+bool success
+string message
